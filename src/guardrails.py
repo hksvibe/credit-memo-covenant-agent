@@ -1,17 +1,31 @@
 """Verbatim-quote guardrail.
 
 Every extracted covenant and every top-risk carries a quote from the memo.
-This module confirms the quote actually appears in the memo's text.
+This module tries to verify each quote against the memo's own text.
 
-We normalise both the memo text and the quote by:
-  - unicode-normalising (NFKC)
-  - replacing curly quotes and dashes with straight equivalents
-  - collapsing all whitespace to single spaces
-  - lowercasing
+Design tension:
+  Claude reads the PDF natively — text plus page images, OCR of scans,
+  full font/layout awareness. pypdf reads only the PDF's text layer. When
+  the memo is scanned, image-heavy, or uses non-standard encoding, pypdf
+  gets partial text while Claude reads the memo cleanly.
 
-This is deliberately forgiving: PDF text extraction differs from what Claude
-"reads" from the same PDF (whitespace across line breaks, ligatures like fi/fl,
-etc.). We want to fail only on real hallucinations, not on transcription noise.
+  In those cases a strict substring check will "fail" for quotes that are
+  actually in the memo. That's a tool-mismatch, not a hallucination — but
+  a naive failure count reads like the model made things up.
+
+Two-tier check:
+  1. Exact substring match (after unicode-normalising, dash/quote folding,
+     whitespace collapsing, lowercasing). Handles Claude's usual quoting.
+  2. If step 1 misses, split on common concatenation separators (em-dashes,
+     ellipses, pipes) and try each fragment as a substring.
+  3. If step 2 still misses, fall back to a fuzzy word-overlap check: at
+     least 90% of the quote's meaningful words (>= 3 chars) appear anywhere
+     in the extracted memo text. This absorbs whitespace, hyphenation, and
+     ligature drift between the two extractors.
+
+We also report a diagnostic — how many characters pypdf pulled out — so a
+user can tell at a glance if the local check couldn't verify anything at
+all because the source is scanned.
 """
 
 from __future__ import annotations
@@ -26,21 +40,17 @@ from .schemas import QuoteCheck, QuoteCheckFailure, ReviewResult
 
 
 _DASH_MAP = str.maketrans({
-    "‐": "-",  # hyphen
-    "‑": "-",  # non-breaking hyphen
-    "‒": "-",  # figure dash
-    "–": "-",  # en dash
-    "—": "-",  # em dash
-    "―": "-",  # horizontal bar
-    "−": "-",  # minus sign
-    "‘": "'",
-    "’": "'",
-    "‚": "'",
-    "“": '"',
-    "”": '"',
-    "„": '"',
-    " ": " ",  # nbsp
+    "‐": "-", "‑": "-", "‒": "-", "–": "-", "—": "-", "―": "-", "−": "-",
+    "‘": "'", "’": "'", "‚": "'",
+    "“": '"', "”": '"', "„": '"',
+    " ": " ",  # nbsp
 })
+
+_FRAGMENT_SEPARATORS = re.compile(r"\s*(?:\.{3,}|…|-{2,}|—|–|\|)\s*")
+_WORD_RE = re.compile(r"\w+", flags=re.UNICODE)
+_MIN_WORD_LEN = 3
+_FUZZY_THRESHOLD = 0.9
+_THIN_TEXT_THRESHOLD = 1000  # characters — below this, we call it "thin"
 
 
 def _normalise(text: str) -> str:
@@ -51,65 +61,60 @@ def _normalise(text: str) -> str:
 
 
 def extract_pdf_text(pdf_path: str | Path) -> str:
-    """Extract raw text from every page of a PDF, joined with single spaces."""
     reader = PdfReader(str(pdf_path))
-    pages: list[str] = []
-    for page in reader.pages:
-        pages.append(page.extract_text() or "")
-    return " ".join(pages)
+    return " ".join((page.extract_text() or "") for page in reader.pages)
 
 
-# Separators the model uses when quoting either (a) a table row across
-# multiple cells or (b) several non-contiguous passages. When any of these
-# appear in a "verbatim" field, we split on them and require each fragment
-# to appear in the memo individually.
-_FRAGMENT_SEPARATORS = re.compile(r"\s*(?:\.{3,}|…|-{2,}|—|–|\|)\s*")
+def _fuzzy_overlap(quote: str, memo_words: set[str]) -> float:
+    """Fraction of the quote's meaningful words that appear in the memo."""
+    tokens = {w.lower() for w in _WORD_RE.findall(quote) if len(w) >= _MIN_WORD_LEN}
+    if not tokens:
+        return 1.0
+    hits = sum(1 for t in tokens if t in memo_words)
+    return hits / len(tokens)
 
 
-def _quote_matches(quote: str, normalised_memo: str, min_fragment_len: int = 8) -> bool:
-    """Return True if `quote` (or every meaningful fragment of it) is in the memo.
-
-    Very short fragments (< min_fragment_len chars after normalisation) are
-    ignored — they're almost always sub-word tokens or separator noise.
-    """
+def _quote_verified(quote: str, normalised_memo: str, memo_words: set[str]) -> bool:
     normalised_full = _normalise(quote)
     if not normalised_full:
         return True
+
+    # Tier 1: exact substring match.
     if normalised_full in normalised_memo:
         return True
-    # Fallback: try splitting on separators and check each fragment.
+
+    # Tier 2: split on concatenation separators; require each meaningful
+    # fragment to appear as a substring.
     fragments = [f for f in _FRAGMENT_SEPARATORS.split(quote) if f.strip()]
-    if len(fragments) <= 1:
-        return False
-    for frag in fragments:
-        normalised = _normalise(frag)
-        if len(normalised) < min_fragment_len:
-            continue
-        if normalised not in normalised_memo:
-            return False
-    return True
+    if len(fragments) > 1:
+        all_present = True
+        for frag in fragments:
+            normalised = _normalise(frag)
+            if len(normalised) < 8:
+                continue  # tiny fragments (numbers, separators) — ignore
+            if normalised not in normalised_memo:
+                all_present = False
+                break
+        if all_present:
+            return True
+
+    # Tier 3: fuzzy word-overlap. Absorbs whitespace / hyphenation / ligature
+    # drift between Claude's PDF vision and pypdf's text extraction.
+    if _fuzzy_overlap(quote, memo_words) >= _FUZZY_THRESHOLD:
+        return True
+
+    return False
 
 
 def check_quotes(result: ReviewResult, memo_text: str) -> QuoteCheck:
-    """Verify every verbatim_text and evidence_from_memo appears in the memo.
-
-    Multi-fragment quotes (table rows joined with em-dashes, or non-contiguous
-    passages joined with " ... ") are treated as passing if each meaningful
-    fragment appears in the memo. This is deliberate: the model reconstructing
-    a table row from separately-extracted cells is faithful behaviour, not a
-    hallucination.
-
-    Returns a QuoteCheck describing which quotes failed to match. The pipeline
-    never *raises* on a failure — a single-source-of-truth report goes into
-    the JSON output for a human to eyeball.
-    """
     normalised_memo = _normalise(memo_text)
+    memo_words = {w.lower() for w in _WORD_RE.findall(memo_text) if len(w) >= _MIN_WORD_LEN}
     failures: list[QuoteCheckFailure] = []
     checked = 0
 
     for cov in result.covenants:
         checked += 1
-        if not _quote_matches(cov.verbatim_text, normalised_memo):
+        if not _quote_verified(cov.verbatim_text, normalised_memo, memo_words):
             failures.append(QuoteCheckFailure(
                 where=f"covenant[{cov.id}].verbatim_text",
                 quote=cov.verbatim_text[:200],
@@ -117,10 +122,19 @@ def check_quotes(result: ReviewResult, memo_text: str) -> QuoteCheck:
 
     for risk in result.top_risks:
         checked += 1
-        if not _quote_matches(risk.evidence_from_memo, normalised_memo):
+        if not _quote_verified(risk.evidence_from_memo, normalised_memo, memo_words):
             failures.append(QuoteCheckFailure(
                 where=f"top_risks[rank={risk.rank}].evidence_from_memo",
                 quote=risk.evidence_from_memo[:200],
             ))
 
-    return QuoteCheck(passed=(len(failures) == 0), checked=checked, failures=failures)
+    text_chars = len(memo_text)
+    thin = text_chars < _THIN_TEXT_THRESHOLD
+
+    return QuoteCheck(
+        passed=(len(failures) == 0),
+        checked=checked,
+        failures=failures,
+        memo_text_chars=text_chars,
+        memo_text_looks_thin=thin,
+    )

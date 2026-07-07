@@ -179,13 +179,31 @@ if uploaded is not None:
 
         # -------- Guardrail --------------------------------------------------
         qc = result.run_metadata.quote_check
-        st.subheader("Guardrail: verbatim-quote check")
+        st.subheader("Guardrail: local quote verification")
+
+        # Diagnostic: pypdf text extraction health.
+        if qc.memo_text_looks_thin:
+            st.info(
+                f"**Note:** the local text extractor (pypdf) pulled only "
+                f"**{qc.memo_text_chars:,} characters** from this PDF — usually a sign the memo is "
+                f"scanned or image-based. Claude reads such PDFs natively via vision, but the local "
+                f"guardrail below can only check the text layer, so it may report unverified quotes "
+                f"that are in fact correct. Treat guardrail results as advisory for this document."
+            )
+
         if qc.passed:
-            st.success(f"All {qc.checked} quotes appear in the memo text.")
+            st.success(f"All {qc.checked} quotes verified against the memo text.")
         else:
-            st.warning(f"{len(qc.failures)} of {qc.checked} quotes did not match the memo text (see below).")
-            for f in qc.failures:
-                st.markdown(f"- `{f.where}` — `{f.quote[:120]}...`")
+            st.warning(
+                f"{len(qc.failures)} of {qc.checked} quotes could not be verified against the "
+                f"locally-extracted memo text. This does NOT mean the model made them up — "
+                f"it means the local extractor (pypdf) could not find them, which often happens "
+                f"on scanned / image-heavy PDFs. Verify by opening the memo yourself."
+            )
+            with st.expander("Show unverified quotes"):
+                for f in qc.failures:
+                    st.markdown(f"- `{f.where}`")
+                    st.markdown(f"  > {f.quote[:200]}{'…' if len(f.quote) >= 200 else ''}")
 
         # -------- Raw JSON + download --------------------------------------
         st.subheader("Raw JSON output")

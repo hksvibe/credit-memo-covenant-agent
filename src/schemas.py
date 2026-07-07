@@ -84,6 +84,11 @@ class QuoteCheck(BaseModel):
     passed: bool
     checked: int = 0
     failures: list[QuoteCheckFailure] = Field(default_factory=list)
+    # Diagnostic: how much text pypdf actually extracted. If this is tiny for a
+    # sizeable PDF, the source is likely scanned/image-based and pypdf can't
+    # verify anything reliably — Claude's native PDF vision is authoritative.
+    memo_text_chars: int = 0
+    memo_text_looks_thin: bool = False
 
 
 class RunMetadata(BaseModel):
