@@ -79,51 +79,186 @@ Return your output via the `record_top_risks` tool. That is the only acceptable 
 """
 
 
+
 # =============================================================================
-# SINGLE-CALL ALTERNATIVE — evaluated and rejected. Kept for reference only.
+# SINGLE-CALL ALTERNATIVES — evaluated, kept for reference only.
 # =============================================================================
 #
-# We ran a single-call design against both memos (7-page synthetic Meridian and
-# 50-page real Deutsche Bank). Findings are in COMPARISONS.md Section 4.
-# Summary: single-call gets the top-3 right on both memos, is ~40% cheaper,
-# but drops covenants (2 of 28 on Meridian, 14 of 50 on Deutsche Bank) and
-# drifts on schema discipline (invents categories outside our enum). The
-# completeness gap widens with memo size — which is why we shipped the
-# two-call design.
+# We ran TWO single-call variants against both memos (7-page Meridian and
+# 50-page real Deutsche Bank). Full findings in COMPARISONS.md Section 4.
 #
-# The block below is the single-call system prompt and combined tool schema
-# for anyone who wants to reproduce the experiment or benchmark against it.
-# It is NOT imported by review.py and NOT called at runtime — pure reference.
+# Variant v1 — thin prompt, permissive schema:
+#   Meridian:  −2 covenants (26 vs 28), 20 invented categories, cost −33%
+#   Deutsche:  −14 covenants (36 vs 50), 26 invented categories, cost −41%
 #
-# ---------- Single-call system prompt --------------------------------------
+# Variant v2 — comprehensive prompt (matches Extract + Rank in depth),
+#              strict category enum matching production schema:
+#   Meridian:  +1 covenant (29 vs 28), 0 invented categories, cost −27%
+#   Deutsche:  −3 covenants (47 vs 50), 0 invented categories, cost −38%
+#              (one rank-2 shift on DB: "extension condition" vs "repayment
+#              schedule" — structurally the same risk described differently)
 #
-# SINGLE_CALL_SYSTEM_PROMPT = """You are a senior credit officer reviewing a
-# corporate credit memo.
+# Why we still ship two calls (not v2 single-call):
+#   1. Auditability — the intermediate covenant list from Extract is a
+#      separately checkable artifact a credit officer eyeballs against
+#      Section 5 of the memo BEFORE trusting the top-3.
+#   2. Debuggability — if the demo breaks live, we can point at which of
+#      the two calls failed. Single-call fails atomically.
+#   3. Marginal completeness — 47/50 is not 50/50. Three covenants
+#      missing on the DB memo included a guarantor financial covenant.
+#   4. Top-3 stability — v2 shifted rank 2 on DB (extension condition
+#      vs repayment). Same underlying risk but different framing —
+#      matters if you care about run-to-run consistency.
 #
-# Your job in this SINGLE call is to do BOTH of the following:
+# Neither block below is imported or called at runtime — pure reference.
 #
-# 1. Extract EVERY covenant from the memo (both financial and non-financial).
-#    Include boilerplate covenants like sanctions/AML, insurance, and reporting
-#    deadlines. For each covenant, include a verbatim_text field with the exact
-#    memo passage.
+# ---------- Single-call v2 system prompt (comprehensive) -------------------
 #
-# 2. Identify the THREE highest-risk covenants and explain why in 1-2 sentences
-#    each. Rank 1 is the highest risk. For each of the top-3, provide an
-#    evidence_from_memo field with a verbatim memo quote supporting the ranking.
+# SINGLE_CALL_V2_SYSTEM_PROMPT = """You are a senior credit officer reviewing
+# a corporate credit memo. Prompt version: 2026-07-07.single-call.v2.
 #
-# Definition of risk: probability the covenant is tripped over the facility life,
-# weighted by the difficulty of curing a trip. Weight downside-scenario breaches
-# highest.
+# Your job in THIS SINGLE call is to do BOTH of the following, in this order:
+#
+# 1. Extract EVERY covenant from the memo into a structured list.
+# 2. Identify the three highest-risk covenants and explain why.
+#
+# CRITICAL: Do the extraction thoroughly BEFORE thinking about the ranking.
+# The most common failure mode of a single-call approach is under-extraction
+# — the model rushes to the ranking task and drops covenants. This is
+# unacceptable. Complete the covenant list first, then rank.
+#
+# ## Part 1 — Covenant extraction
+#
+# ### What counts as a covenant
+#
+# A covenant is any promise, restriction, threshold, quantitative test, or
+# ongoing condition the borrower is required to comply with under the credit
+# facility. Include BOTH:
+#
+# - Financial covenants — quantitative tests with numeric thresholds:
+#   - Leverage-style: total net leverage, senior net leverage, total debt /
+#     EBITDA, net debt / EBITDA, funded debt / EBITDA, debt / capitalisation,
+#     gearing, LTV.
+#   - Coverage-style: interest coverage, cash interest coverage, fixed-charge
+#     coverage, debt-service coverage (DSCR), EBITDA / interest.
+#   - Liquidity-style: minimum liquidity, minimum cash balance, minimum
+#     undrawn revolver, minimum working capital.
+#   - Capital / equity: maximum capex, minimum tangible net worth, minimum
+#     equity, maximum dividends as % of net income.
+#   - Other quantitative: minimum EBITDA, ownership thresholds, minimum
+#     annual amortisation.
+#
+# - Non-financial covenants — restrictions, undertakings, reporting
+#   requirements, or ongoing conditions:
+#   - Reporting: financial statements deadlines, compliance certificate,
+#     budget delivery, projections delivery, notice of default, notice of
+#     material litigation.
+#   - Debt / lien: negative pledge, limitation on indebtedness, limitation
+#     on liens, permitted debt basket, incremental facility conditions.
+#   - Payment: restricted payments / dividends basket, subordinated
+#     payments, junior debt payments.
+#   - Structural: asset sale sweep, excess cash flow sweep, change of
+#     control, permitted acquisitions, permitted investments, affiliate
+#     transactions, merger/consolidation limits, transfer restrictions.
+#   - Guarantees: full recourse guarantees (per obligor / per facility —
+#     treat each as its own covenant).
+#   - Business-of-borrower: sanctions / anti-corruption / AML compliance,
+#     insurance, ERISA / pension, environmental undertakings, tax
+#     compliance, use of proceeds.
+#   - Deal-specific conditions: hedging conditions, quality-of-earnings
+#     requirements, KYC obligations, MAC (material adverse change)
+#     clauses, cross-default triggers.
+#   - Conditions precedent to closing or funding — treat each CP as its
+#     own covenant if the memo lists them separately.
+#   - Extension/renewal conditions — treat each extension condition as
+#     its own covenant.
+#
+# ### Extraction rules
+#
+# 1. Include EVERY covenant. Do NOT skip boilerplate. If uncertain,
+#    include it and mark its category as "other".
+# 2. One row per covenant. Do NOT merge related covenants into a single
+#    row (a leverage covenant with a step-down schedule is one covenant;
+#    a set of 4 CP items is 4 covenants).
+# 3. For financial covenants, `threshold` must include the FULL text of
+#    the threshold — if it steps down or up over time, include the whole
+#    schedule.
+# 4. If the memo states the covenant's value at close and/or a stressed /
+#    downside value, put them in `current_value` and `downside_value`.
+#    If the memo does not state these, leave them blank.
+# 5. Every covenant must include a `verbatim_text` field with an EXACT
+#    quote from the memo — shortest contiguous passage identifying the
+#    covenant AND its threshold. No paraphrase, no reordering.
+# 6. Every covenant must include a `source_section` — use whatever
+#    labelling the memo actually uses.
+# 7. Assign ids sequentially: cov_01, cov_02, ...
+# 8. Choose the closest matching `category` from the enum. Use "other"
+#    ONLY if no listed category fits.
+# 9. If the memo is in a language other than English, keep verbatim_text
+#    in the original language but write name in English.
+# 10. If the memo mentions the same covenant multiple times, keep the
+#     schedule entry (has the full threshold) and discard duplicates.
+#
+# ## Part 2 — Top-3 risk ranking
+#
+# Now, and ONLY after you have completed the covenant list, identify the
+# three highest-risk covenants.
+#
+# ### Definition of "risk"
+#
+# The probability that this covenant is tripped over the facility life,
+# weighted by the difficulty of curing a trip if it happens.
+#
+# ### Signals to weight (in order of importance)
+#
+# 1. Any covenant PROJECTED TO BREACH under any downside, stressed, or
+#    sensitivity scenario stated in the memo.
+# 2. Thin headroom in the base case or downside case — less than 10-15%
+#    cushion, or less than 0.25x for a leverage test, or less than 2
+#    months of runway for a liquidity test.
+# 3. Covenants that step down (become stricter) during the facility life,
+#    especially if the step lands during a period of execution risk.
+# 4. Seasonal or working-capital patterns that stress the covenant
+#    periodically.
+# 5. Covenants that depend on management execution rather than external
+#    market factors.
+# 6. Non-financial covenants can absolutely be top-3.
+#
+# ### Ranking guardrails
+#
+# - Do NOT default to whichever risks the executive summary already
+#   flagged. Work through the full covenant list yourself.
+# - For each of the top-3, provide an `evidence_from_memo` field with a
+#   SINGLE verbatim passage — no stitching with "...", "|", or "—".
+# - If two covenants are close on risk, prefer the one where a breach
+#   would be harder to cure.
+# - Rank 1 is the highest risk. Ranks must be 1, 2, 3.
+# - Use the covenant_id from the extracted list — do NOT invent new ids.
+# - If the memo is genuinely thin on risk signal, still return your best
+#   three based on structural factors. Say so in the reasoning.
+#
+# ## Balancing both tasks
+#
+# - Do not sacrifice extraction completeness for reasoning depth. Complete
+#   the covenant list FIRST.
+# - If your output budget is running low, prefer to shorten the top-3
+#   reasoning rather than drop covenants.
+# - Every covenant must appear in the covenants array, even if it is not
+#   part of your top-3.
 #
 # Return your output via the review_credit_memo tool. That is the only
 # acceptable output.
 # """
 #
-# ---------- Single-call combined tool schema -------------------------------
+# ---------- Single-call v2 combined tool schema ----------------------------
 #
-# COMBINED_TOOL = {
+# COMBINED_TOOL_V2 = {
 #     "name": "review_credit_memo",
-#     "description": "Extract every covenant AND identify top-3 risks in one call.",
+#     "description": (
+#         "Extract EVERY covenant AND identify top-3 risks in one call. "
+#         "Extraction completeness takes priority over ranking depth if the "
+#         "output budget is tight."
+#     ),
 #     "input_schema": {
 #         "type": "object",
 #         "properties": {
@@ -138,17 +273,28 @@ Return your output via the `record_top_risks` tool. That is the only acceptable 
 #             },
 #             "covenants": {
 #                 "type": "array",
+#                 "description": "Every covenant found. Include boilerplate.",
 #                 "items": {
 #                     "type": "object",
 #                     "properties": {
 #                         "id": {"type": "string"},
 #                         "name": {"type": "string"},
-#                         "type": {"type": "string", "enum": ["financial", "non-financial"]},
-#                         # NOTE: keep the same 16-value enum as EXTRACT_TOOL if
-#                         # reproducing this, otherwise the model invents its own
-#                         # categories (26 invented on the DB memo — see
-#                         # COMPARISONS.md Section 4).
-#                         "category": {"type": "string"},
+#                         "type": {"type": "string",
+#                                   "enum": ["financial", "non-financial"]},
+#                         # STRICT ENUM — matches EXTRACT_TOOL in schemas.py.
+#                         # v1 experiment used permissive string and got
+#                         # 26 invented category values on DB memo.
+#                         "category": {
+#                             "type": "string",
+#                             "enum": [
+#                                 "leverage", "coverage", "liquidity", "capex",
+#                                 "reporting", "restricted_payment",
+#                                 "change_of_control", "negative_pledge",
+#                                 "acquisition", "asset_sale", "cash_flow_sweep",
+#                                 "affiliate_transaction", "sanctions_aml",
+#                                 "insurance_erisa", "indebtedness", "other",
+#                             ],
+#                         },
 #                         "threshold": {"type": "string"},
 #                         "test_frequency": {"type": "string"},
 #                         "current_value": {"type": "string"},
@@ -156,8 +302,9 @@ Return your output via the `record_top_risks` tool. That is the only acceptable 
 #                         "source_section": {"type": "string"},
 #                         "verbatim_text": {"type": "string"},
 #                     },
-#                     "required": ["id", "name", "type", "category", "threshold",
-#                                  "source_section", "verbatim_text"],
+#                     "required": ["id", "name", "type", "category",
+#                                  "threshold", "source_section",
+#                                  "verbatim_text"],
 #                 },
 #             },
 #             "top_risks": {
@@ -187,12 +334,12 @@ Return your output via the `record_top_risks` tool. That is the only acceptable 
 # One HTTP request to Anthropic with:
 #   - model="claude-sonnet-4-6"
 #   - max_tokens=32000
-#   - system=SINGLE_CALL_SYSTEM_PROMPT
-#   - tools=[COMBINED_TOOL]
+#   - system=SINGLE_CALL_V2_SYSTEM_PROMPT
+#   - tools=[COMBINED_TOOL_V2]
 #   - tool_choice={"type": "tool", "name": "review_credit_memo"}
 #   - one document block (PDF as base64) + one text block
 #
-# Parse the tool_use block from response.content — it contains both `covenants`
-# and `top_risks` in a single dict. No second call needed.
+# Parse the tool_use block from response.content — it contains both
+# `covenants` and `top_risks` in a single dict. No second call needed.
 #
 # =============================================================================

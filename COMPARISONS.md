@@ -174,119 +174,126 @@ Honest answer to *"why not both?"* — for a bank innovation team at production 
 
 ---
 
-## 4. Single Call vs Two Calls — what we tested and why we picked two
+## 4. Two Calls vs Single Call — three-way comparison
 
-Our pipeline uses **two separate AI calls**: one to extract every covenant (Extract), then a second to rank the top-3 risks (Rank). The obvious alternative is doing both jobs in **one AI call** — extract AND rank in the same request. It sounds simpler and cheaper. We tested it against real memos to see if the two-call design earns its cost.
+Our pipeline uses **two separate AI calls**: one to extract every covenant (Extract), then a second to rank the top-3 risks (Rank). The obvious alternative is doing both jobs in one AI call — extract AND rank in the same request. We tested TWO different single-call variants against the production two-call pipeline on two memos.
 
 ### 4.1 What we tested
 
-We built a single-call variant with:
-- One combined system prompt asking the AI to do both jobs
-- One combined "tool" (form) with slots for BOTH the covenants list AND the top-3 risks
-- Same model (Claude Sonnet 4.6), same PDF input, same guardrail check
+Three approaches head-to-head:
 
-Then we ran BOTH pipelines (two-call and single-call) against two different memos and compared the outputs directly.
+- **Two calls (production)** — Extract call followed by Rank call. Each call has its own tightly-scoped system prompt (~4000 chars for Extract, ~2700 for Rank) and its own strict tool schema with the 16-value category enum.
+- **Single call — thin prompt (v1)** — one combined call with a short (~700 char) prompt that just says "do both." Permissive schema — `category` accepted as free-text.
+- **Single call — comprehensive prompt (v2)** — one combined call with a full ~5000-char prompt matching Extract's taxonomy and rules AND Rank's signals and guardrails. Strict category enum matching production.
 
-The single-call prompt and tool schema are kept as a commented reference block at the bottom of [`src/prompts.py`](src/prompts.py) — anyone can reproduce the experiment. It is NOT wired into the production pipeline.
+Both single-call variants are kept as commented reference blocks at the bottom of [`src/prompts.py`](src/prompts.py). Neither is wired into the production pipeline.
 
 ### 4.2 Meridian memo (7 pages, synthetic)
 
-| What we measured | Two calls (production) | Single call (experiment) | Delta |
+| Metric | Two calls (production) | Single call — thin (v1) | Single call — comprehensive (v2) |
 |---|---|---|---|
-| Covenants extracted | **28** | **26** | **−2 (−7%)** |
-| Top-3 covenants named | Interest coverage / Leverage / Liquidity | Same three, same order | ✓ match |
-| Quality of reasoning | 459 chars avg | 489 chars avg | ≈ same |
-| Guardrail (quotes verified) | 31 of 31 | 29 of 29 | both 100% |
-| Category discipline | 16 valid enum values | **20 invented labels** | ✗ drift |
-| Cost per review | $0.19 | $0.13 | **−33%** |
-| Wall-clock time | 15-45 s typical | ~80 s | slower |
+| Covenants extracted | **28** | 26 (−2, −7%) | **29 (+1, +4%)** |
+| Top-3 covenants | Interest coverage / Leverage / Liquidity | ✓ same three, same order | ✓ same three, same order |
+| Quality of reasoning | 459 chars avg | 489 chars avg | 470 chars avg |
+| Guardrail quotes verified | 31 of 31 | 29 of 29 | **32 of 32** |
+| Category enum drift | 0 invented | **20 invented** | 0 invented |
+| Cost per review | $0.19 | $0.13 | $0.14 |
+| Wall-clock time | 15-45s typical | ~80s | ~84s |
 
-Read-through: on a small, clean, well-structured memo, single-call gets the same top-3 for 33% less. But it already starts inventing category labels that don't match our controlled vocabulary.
+**Read-through:** on a small, clean, well-structured memo, comprehensive single-call is actually BETTER than two calls on completeness (29 vs 28) at 27% lower cost. Thin single-call loses ground on completeness AND invents 20 category labels. On Meridian alone, comprehensive single-call would be a defensible choice.
 
 ### 4.3 Deutsche Bank memo (50 pages, real)
 
-| What we measured | Two calls (production) | Single call (experiment) | Delta |
+| Metric | Two calls (production) | Single call — thin (v1) | Single call — comprehensive (v2) |
 |---|---|---|---|
-| Covenants extracted | **50** | **36** | **−14 (−28%)** |
-| Top-3 covenants named | Guarantor net worth / Facility A repayment / Facility B DSCR | Same three, same order | ✓ match |
-| Quality of reasoning | 547 chars avg | 619 chars avg | slightly longer |
-| Guardrail (quotes verified) | 53 of 53 | 38 of 39 | ~ 100% |
-| Category discipline | 11 valid enum values | **26 invented labels** | ✗ severe drift |
-| Cost per review | $0.63 | $0.37 | **−41%** |
-| Wall-clock time | ~180 s | ~180 s | ≈ same |
+| Covenants extracted | **50** | 36 (−14, −28%) | 47 (−3, −6%) |
+| Top-3 covenants | Guarantor NW / Facility A repayment / Facility B DSCR | ✓ same three, same order | **≈ same three, rank 2 shifted** (extension condition vs repayment) |
+| Quality of reasoning | 547 chars avg | 619 chars avg | 580 chars avg |
+| Guardrail quotes verified | 53 of 53 | 38 of 39 | 50 of 50 |
+| Category enum drift | 0 invented | **26 invented** | 0 invented |
+| Cost per review | $0.63 | $0.37 | $0.39 |
+| Wall-clock time | ~180s | ~185s | ~178s |
 
-Read-through: on a real 50-page bank memo, single-call misses **14 covenants** — including two of the three guarantor financial covenants, all four Facility A extension conditions, the Facility B negative covenants, and multiple reporting sub-requirements. Same top-3, but the completeness gap is huge.
+**Read-through:** on a real 50-page bank memo, comprehensive single-call dramatically closes the completeness gap — from 14 missing covenants (v1) down to 3 (v2). Category drift is eliminated. BUT the top-3 shifts: v2 picked "Facility A Extension Condition" at rank 2 instead of "Facility A Minimum Annual Repayment." These are structurally the same risk (missing the annual $14M repayment schedule means missing the extension gate), but different framing — a real run-to-run stability question.
 
-### 4.4 The pattern in one sentence
+### 4.4 The pattern
 
-**Both approaches get the top-3 right on both memos. Single-call misses covenants; the gap widens sharply with memo size — from 7% on Meridian to 28% on Deutsche Bank.**
+Two things stand out across both memos:
 
-That's the load-bearing finding. On a clean synthetic test, single-call looks fine. On a real memo, it drops nearly a third of the covenants.
+- **Both single-call variants get the top-3 right on Meridian and both name the same underlying three risks on DB.** Ranking accuracy is not the differentiator.
+- **Completeness responds strongly to prompt depth.** Thin single-call misses 28% on DB. Comprehensive single-call misses 6%. Prompt engineering closes most (but not all) of the gap.
+- **Schema discipline responds to enum enforcement.** Thin single-call invented 20-26 categories per memo. Comprehensive single-call — same enum as production — invents zero.
 
-### 4.5 Benefits of the two-call design
+The story is not "single-call is broken." It is: **thin single-call is clearly worse; comprehensive single-call is a legitimate alternative with a few real trade-offs.**
 
-Five specific things two calls buy you that a single call does not:
+### 4.5 Why we still choose two calls over comprehensive single-call
 
-1. **Completeness on the covenant list.** The single call spends its output budget getting the top-3 reasoning right, at the expense of listing every boring covenant. The two-call design forces the AI to focus entirely on completeness in the first call, before it thinks about ranking.
+Comprehensive single-call closed the biggest gaps. The remaining reasons to keep two calls are structural, not raw-metric:
 
-2. **Schema discipline (enum compliance).** Each of our two tool schemas has strict enum constraints — 16 valid categories for covenants, exactly 3 ranked risks. Two focused schemas are easier to enforce than one big combined schema. When we relaxed the schema in the single-call experiment, the AI invented 26 different category names — every filter, every cross-memo query, every downstream automation rule breaks silently on those.
+1. **Auditability of the intermediate covenant list.** A credit officer using this in a review workflow wants to eyeball the extracted covenant list against Section 5 of the memo BEFORE trusting the top-3 ranking. Two calls make the covenant list a first-class checkable artifact — you get it back from Extract, you can display it, save it, filter it. Single-call collapses that check: you get the covenants and the ranking together and have to trust or reject both. **This is real product value in a credit-officer workflow, not a demo detail.**
 
-3. **Auditability.** A credit officer using the tool wants to eyeball the extracted covenant list against Section 5 of the memo BEFORE trusting the top-3 ranking. Two calls make the covenant list a checkable artifact. Single-call collapses that check — you get the covenants and the ranking together and have to trust or reject both.
+2. **Debuggability under interview pressure.** If the demo fails live, two calls let us point at which stage broke. Extraction thorough but ranking confused? Extraction missed covenants that would have changed the ranking? Two independent failure surfaces are easier to reason about than one atomic call. Single-call fails atomically — no way to tell which half went wrong.
 
-4. **Debuggability.** If the demo breaks live, we can point at which of the two calls failed. Was extraction thorough but ranking confused? Or did extraction miss covenants that would have changed the ranking? Single-call fails atomically — no way to tell which half went wrong.
+3. **Marginal completeness matters.** 47 of 50 is not 50 of 50. The three covenants comprehensive single-call missed on DB include a guarantor financial covenant. In a bank workflow, "extraction is 94% complete" is a real gap for a credit officer to hit.
 
-5. **Anti-summary bias.** Single-call outputs consistently over-weighted whatever the memo's own executive summary flagged as risky. Even with anti-bias language in the prompt, it copied the summary. Two calls, with the Rank call working from a clean covenant list, gives the model a chance to actually work through the covenants and disagree with the summary if warranted.
+4. **Top-3 run-to-run stability.** Comprehensive single-call shifted rank 2 on DB (Facility A extension condition vs annual repayment). Both are structurally the same underlying risk, but a reviewer running the tool multiple times shouldn't see the top-3 fluctuate on wording. Two focused calls with narrower schemas produce more stable output.
+
+5. **Prompt-engineering brittleness.** Comprehensive single-call works BECAUSE of a very long, carefully-constructed prompt. Any tweak — a new covenant category, a new ranking signal, a change to the guardrail definition — has to be threaded through one giant prompt that handles both jobs. Two calls let each stage evolve independently. Cheaper maintenance long-term.
+
+None of these five is decisive on its own. Together they justify the ~$0.10 cost premium (once caching is enabled, see Section 4.7).
 
 ### 4.6 Why we picked two calls (the decision)
 
-If we only tested Meridian, single-call would be a defensible choice — 33% cheaper for 95% of the value. But testing on Deutsche Bank changed the story. A production tool has to work on real memos, not just clean synthetic ones. The 28% completeness gap on Deutsche Bank is unacceptable — it means the tool is quietly dropping guarantor covenants, extension conditions, and reporting requirements that a credit officer would care about.
+If the tool were a pure "read memo → return top-3 highlights" API with no human in the loop, comprehensive single-call would be the right choice — same top-3, 38% cheaper, comparable schema quality. That's not the target use case.
 
-**We picked two calls because the completeness gap widens with memo complexity, and the tool is meant to work on real memos.** The 41% cost premium buys real value on real memos — value that would only be visible once a reviewer tried a bigger document.
+**The tool is intended to sit in a credit-officer review workflow** where the reviewer wants to (a) see the full covenant list as a checkable artifact, (b) trust the top-3 ranking is grounded in a complete list, and (c) understand which stage of the pipeline produced which output. Every one of those goals is served by two calls and undermined by a single call — regardless of how comprehensive the single-call prompt is.
 
-Add to that: schema discipline (enum compliance), auditability (checkable intermediate artifact), and debuggability (can isolate which stage failed). Every one of those has real production value.
+**We picked two calls because the split matches how a credit officer would use the tool.** The AI does the same work in either architecture; the two-call design just makes the intermediate output usable and the failure modes debuggable.
 
 ### 4.7 Cost recovery at scale — prompt caching
 
-The 41% cost premium isn't a permanent tax. Anthropic offers **prompt caching**, which recovers most of it with a one-line code change. Here's how it works, plainly.
+The ~40% cost premium at DB scale is not a permanent tax. Anthropic offers **prompt caching**, which recovers most of it with a one-line code change.
 
-**The mechanic.**
-- On the first call, mark the PDF as cachable. The first call pays a small **25% premium** on the cached portion (Anthropic charges $3.75 per million tokens instead of $3.00 for content marked as cache-write).
+**How it works.**
+- On the first call, mark the PDF as cachable. The first call pays a small **25% premium** on the cached portion (Anthropic charges $3.75 per million tokens instead of $3.00 for cache-write content).
 - On any second call **within 5 minutes** that references the same cached content, the cached portion is billed at only **10% of the normal input price** — $0.30 per million tokens instead of $3.00.
-- Cache automatically expires after 5 minutes.
+- Cache expires after 5 minutes.
 
-Our Rank call always fires within a few seconds of Extract, so the cache is always warm when we need it. Perfect fit.
+Our Rank call always fires within a few seconds of Extract, so the cache is always warm.
 
-**The cost math on the Deutsche Bank memo.**
+**Cost math on the Deutsche Bank memo.**
 
 | Line item | Without caching | With caching |
 |---|---|---|
-| Extract input (PDF ~68K + prompt ~5K) | $0.22 | $0.27 (cache-write premium on the PDF) |
+| Extract input (PDF ~68K + prompt ~5K) | $0.22 | $0.27 (cache-write premium on PDF) |
 | Extract output | $0.15 | $0.15 |
 | Rank input, cached PDF (~68K) | $0.20 | **$0.02** (90% discount) |
 | Rank input, non-cached (covenants list + Rank prompt ~14K) | $0.05 | $0.04 |
 | Rank output | $0.01 | $0.01 |
 | **Total per review** | **$0.63** | **~$0.49** |
 
-Result: the two-call design with caching enabled costs about **$0.49 per review** on a Deutsche Bank–sized memo. Single-call was $0.37. The gap narrows from 41% down to about 24% — and the two-call design keeps its completeness, schema discipline, auditability, and debuggability advantages.
+Result: two calls with caching enabled costs about **$0.49** on a DB-sized memo. Comprehensive single-call was $0.39. The gap narrows from 38% down to about 26% — and two calls keeps its auditability, debuggability, completeness, top-3 stability, and prompt-maintenance advantages.
 
-On smaller memos (Meridian-sized), caching saves about 15% — smaller absolute dollars but the same proportional recovery.
+On smaller memos (Meridian-sized), caching saves about 15%.
 
-**Implementation cost:** one field on one Python dict. In `src/review.py`, the `_pdf_document_block()` helper would grow one line — `"cache_control": {"type": "ephemeral"}` — added to the document source. Everything else stays identical.
+**Implementation cost:** one field on one Python dict. In [`src/review.py`](src/review.py), the `_pdf_document_block()` helper would grow one line — `"cache_control": {"type": "ephemeral"}` on the document source. Everything else stays identical.
 
-We haven't shipped caching in the POC because at demo volume ($0.15-0.63 per review, 20-30 runs a day) the absolute savings don't justify the extra thing to explain in the walkthrough. It's the first optimisation we'd add before going to production volume.
+We have not shipped caching in the POC because at demo volume ($0.15-0.63 per review, 20-30 runs a day) the absolute savings do not justify the extra thing to explain in the walkthrough. It is the first optimisation we would add before going to production volume.
 
 ### 4.8 Summary of the trade-off
 
-| | Two calls (chosen) | Single call | Two calls + caching |
-|---|---|---|---|
-| Covenants completeness on real memos | Full (50/50 on DB) | −28% (36/50 on DB) | Full |
-| Top-3 accuracy | ✓ | ✓ | ✓ |
-| Schema/enum compliance | ✓ | ✗ | ✓ |
-| Cost per review (Deutsche Bank scale) | $0.63 | $0.37 | ~$0.49 |
-| Auditable intermediate covenant list | ✓ | ✗ | ✓ |
-| Debuggable by stage | ✓ | ✗ | ✓ |
+| Dimension | Two calls (chosen) | Two calls + caching | Single — thin | Single — comprehensive |
+|---|---|---|---|---|
+| Completeness on DB (50-page real memo) | 50 / 50 | 50 / 50 | 36 / 50 | 47 / 50 |
+| Completeness on Meridian (7-page synthetic) | 28 | 28 | 26 | 29 |
+| Top-3 accuracy | ✓ ref | ✓ ref | ✓ same | ~ same (1 rank shift on DB) |
+| Schema / enum discipline | ✓ | ✓ | ✗ (20-26 invented) | ✓ |
+| Cost per DB review | $0.63 | ~$0.49 | $0.37 | $0.39 |
+| Auditable intermediate covenant list | ✓ | ✓ | ✗ | ✗ |
+| Debuggable by stage | ✓ | ✓ | ✗ | ✗ |
+| Prompt maintenance | Two focused prompts | Two focused prompts | One thin prompt | One ~5000-char monolith |
 
-Same accuracy on the ranking, but two calls (with caching enabled at scale) delivers full completeness, schema compliance, and auditability at ~$0.12 more than single-call — worth it for a tool meant to run on real memos.
+**The honest one-sentence read:** comprehensive single-call is a legitimate technical alternative — it gets the ranking right, closes the completeness gap to 6%, and costs less. Two calls wins because it produces an intermediate artifact (the covenant list) that fits the credit-officer review workflow, and because two focused prompts are easier to maintain and debug than one 5000-character monolith.
 
 ---
 
