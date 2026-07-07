@@ -32,7 +32,7 @@ Plain-English key used throughout:
 | **How mature is the developer experience?** | Very mature. Clean SDK, good docs, stable. | Mature but historically the docs have been the messiest of the group. | Very mature. The most third-party tools built for it. | Simple API but ecosystem is thinner. |
 | **How easy to switch away from if we outgrow it?** | Easy — API shape is similar to OpenAI/Gemini. Change ~20 lines. | Same. | Same. | Same, but you're already on open-source, so you can host yourself if the vendor becomes a problem. |
 
-### 1.2 POC perspective — which one wins for this 48-hour demo?
+### 1.2 POC perspective — which one wins?
 
 | Winner | Why in one sentence |
 |---|---|
