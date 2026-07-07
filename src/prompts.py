@@ -77,3 +77,122 @@ You have already been given the full extracted list of covenants (both financial
 
 Return your output via the `record_top_risks` tool. That is the only acceptable output.
 """
+
+
+# =============================================================================
+# SINGLE-CALL ALTERNATIVE — evaluated and rejected. Kept for reference only.
+# =============================================================================
+#
+# We ran a single-call design against both memos (7-page synthetic Meridian and
+# 50-page real Deutsche Bank). Findings are in COMPARISONS.md Section 4.
+# Summary: single-call gets the top-3 right on both memos, is ~40% cheaper,
+# but drops covenants (2 of 28 on Meridian, 14 of 50 on Deutsche Bank) and
+# drifts on schema discipline (invents categories outside our enum). The
+# completeness gap widens with memo size — which is why we shipped the
+# two-call design.
+#
+# The block below is the single-call system prompt and combined tool schema
+# for anyone who wants to reproduce the experiment or benchmark against it.
+# It is NOT imported by review.py and NOT called at runtime — pure reference.
+#
+# ---------- Single-call system prompt --------------------------------------
+#
+# SINGLE_CALL_SYSTEM_PROMPT = """You are a senior credit officer reviewing a
+# corporate credit memo.
+#
+# Your job in this SINGLE call is to do BOTH of the following:
+#
+# 1. Extract EVERY covenant from the memo (both financial and non-financial).
+#    Include boilerplate covenants like sanctions/AML, insurance, and reporting
+#    deadlines. For each covenant, include a verbatim_text field with the exact
+#    memo passage.
+#
+# 2. Identify the THREE highest-risk covenants and explain why in 1-2 sentences
+#    each. Rank 1 is the highest risk. For each of the top-3, provide an
+#    evidence_from_memo field with a verbatim memo quote supporting the ranking.
+#
+# Definition of risk: probability the covenant is tripped over the facility life,
+# weighted by the difficulty of curing a trip. Weight downside-scenario breaches
+# highest.
+#
+# Return your output via the review_credit_memo tool. That is the only
+# acceptable output.
+# """
+#
+# ---------- Single-call combined tool schema -------------------------------
+#
+# COMBINED_TOOL = {
+#     "name": "review_credit_memo",
+#     "description": "Extract every covenant AND identify top-3 risks in one call.",
+#     "input_schema": {
+#         "type": "object",
+#         "properties": {
+#             "memo_metadata": {
+#                 "type": "object",
+#                 "properties": {
+#                     "borrower": {"type": "string"},
+#                     "facility_size_usd_m": {"type": "number"},
+#                     "memo_date": {"type": "string"},
+#                 },
+#                 "required": ["borrower"],
+#             },
+#             "covenants": {
+#                 "type": "array",
+#                 "items": {
+#                     "type": "object",
+#                     "properties": {
+#                         "id": {"type": "string"},
+#                         "name": {"type": "string"},
+#                         "type": {"type": "string", "enum": ["financial", "non-financial"]},
+#                         # NOTE: keep the same 16-value enum as EXTRACT_TOOL if
+#                         # reproducing this, otherwise the model invents its own
+#                         # categories (26 invented on the DB memo — see
+#                         # COMPARISONS.md Section 4).
+#                         "category": {"type": "string"},
+#                         "threshold": {"type": "string"},
+#                         "test_frequency": {"type": "string"},
+#                         "current_value": {"type": "string"},
+#                         "downside_value": {"type": "string"},
+#                         "source_section": {"type": "string"},
+#                         "verbatim_text": {"type": "string"},
+#                     },
+#                     "required": ["id", "name", "type", "category", "threshold",
+#                                  "source_section", "verbatim_text"],
+#                 },
+#             },
+#             "top_risks": {
+#                 "type": "array",
+#                 "minItems": 3,
+#                 "maxItems": 3,
+#                 "items": {
+#                     "type": "object",
+#                     "properties": {
+#                         "rank": {"type": "integer", "enum": [1, 2, 3]},
+#                         "covenant_id": {"type": "string"},
+#                         "covenant_name": {"type": "string"},
+#                         "reasoning": {"type": "string"},
+#                         "evidence_from_memo": {"type": "string"},
+#                     },
+#                     "required": ["rank", "covenant_id", "covenant_name",
+#                                  "reasoning", "evidence_from_memo"],
+#                 },
+#             },
+#         },
+#         "required": ["memo_metadata", "covenants", "top_risks"],
+#     },
+# }
+#
+# ---------- How you would call this at runtime -----------------------------
+#
+# One HTTP request to Anthropic with:
+#   - model="claude-sonnet-4-6"
+#   - max_tokens=32000
+#   - system=SINGLE_CALL_SYSTEM_PROMPT
+#   - tools=[COMBINED_TOOL]
+#   - tool_choice={"type": "tool", "name": "review_credit_memo"}
+#   - one document block (PDF as base64) + one text block
+#
+# Parse the tool_use block from response.content — it contains both `covenants`
+# and `top_risks` in a single dict. No second call needed.
+#
+# =============================================================================
