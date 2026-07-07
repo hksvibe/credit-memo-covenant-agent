@@ -232,7 +232,7 @@ Comprehensive single-call closed the biggest gaps. The remaining reasons to keep
 
 1. **Auditability of the intermediate covenant list.** A credit officer using this in a review workflow wants to eyeball the extracted covenant list against Section 5 of the memo BEFORE trusting the top-3 ranking. Two calls make the covenant list a first-class checkable artifact — you get it back from Extract, you can display it, save it, filter it. Single-call collapses that check: you get the covenants and the ranking together and have to trust or reject both. **This is real product value in a credit-officer workflow, not a demo detail.**
 
-2. **Debuggability under interview pressure.** If the demo fails live, two calls let us point at which stage broke. Extraction thorough but ranking confused? Extraction missed covenants that would have changed the ranking? Two independent failure surfaces are easier to reason about than one atomic call. Single-call fails atomically — no way to tell which half went wrong.
+2. **Debuggability** If the demo fails live, two calls let us point at which stage broke. Extraction thorough but ranking confused? Extraction missed covenants that would have changed the ranking? Two independent failure surfaces are easier to reason about than one atomic call. Single-call fails atomically — no way to tell which half went wrong.
 
 3. **Marginal completeness matters.** 47 of 50 is not 50 of 50. The three covenants comprehensive single-call missed on DB include a guarantor financial covenant. In a bank workflow, "extraction is 94% complete" is a real gap for a credit officer to hit.
 
