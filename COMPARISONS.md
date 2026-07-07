@@ -1,4 +1,4 @@
-# Tool & Model Comparisons — Simple English
+# Tool, Model & Prompt Comparisons 
 
 Two sets of comparisons:
 
