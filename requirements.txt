@@ -1,0 +1,6 @@
+anthropic>=0.40.0
+pydantic>=2.6.0
+python-dotenv>=1.0.0
+pypdf>=4.0.0
+streamlit>=1.31.0
+pandas>=2.2.0
