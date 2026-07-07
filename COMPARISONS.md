@@ -1,10 +1,9 @@
 # Tool & Model Comparisons — Simple English
 
-Three sets of comparisons:
+Two sets of comparisons:
 
 1. **LLM providers** — Claude vs Gemini vs OpenAI vs Groq
 2. **Claude models** — Opus vs Sonnet vs Haiku
-3. **Stack tools** — n8n vs alternatives · Firebase vs alternatives · Lovable vs alternatives
 
 Every table has two verdict columns: one for the POC (this 48-hour demo) and one for running the same tool at large scale in a bank.
 
@@ -125,81 +124,71 @@ If cost pressure is extreme at scale, an alternative is **Sonnet for both + Opus
 
 ---
 
-## 3. Tool Comparisons
+## 3. Why we picked the code-first approach for this POC
 
-Three separate tool decisions in the low-code stack:
+We seriously considered building both paths in parallel — Python + Streamlit AND n8n + Firebase + Lovable — and ended up shipping only the code-first version. Same AI model, same schema, same guardrail. Different tooling. Here's the honest reasoning.
 
-- **Orchestration** (the "which step happens when" tool): **n8n** vs alternatives
-- **Storage & database** (where PDFs and results live): **Firebase** vs alternatives
-- **Frontend** (what the user sees): **Lovable** vs alternatives
+### The two candidates, side by side
 
-### 3.1 Orchestration — n8n vs alternatives
+| | **Code-first (chosen)** | **Low-code alternative** |
+|---|---|---|
+| Stack | Python + Anthropic SDK + Streamlit | n8n + Firebase + Lovable + Anthropic REST |
+| Where the pipeline runs | Single Python process on Streamlit Cloud | 9-node visual workflow on n8n Cloud |
+| Where the UI lives | Streamlit Community Cloud (free tier) | GitHub Pages (frontend) + n8n Cloud (backend) |
+| Where results live | Downloadable JSON | Firestore documents (persistent history) |
+| Vendor accounts to set up | 2 (Anthropic + Streamlit Cloud) | 4 (Anthropic + n8n Cloud + Firebase + GitHub Pages) |
+| Time to a working demo | ~2 hours | ~4-5 hours (three service consoles + credentials + wiring) |
+| Streaming from Anthropic | Yes (Python SDK) | No (n8n's HTTP node waits for full response) |
+| Max token budget | 32,000 (fits any real memo) | 16,000 (capped to stay under HTTP timeout) |
+| Latency per review | 15-45 seconds | 25-70 seconds |
+| Cost per review | ~$0.15-0.63 (Anthropic only) | Same Anthropic bill + $20/mo n8n Cloud after 14-day trial |
+| How you defend it in interview | Line-by-line through ~150 lines of Python | Click through 9 workflow nodes |
+| Persistence | User downloads the JSON | Every run auto-saved to Firestore |
+| Retries + observability | You write them | Built-in per node |
+| Who can maintain the prompts | Engineers (PR + deploy) | Ops/business (edit workflow, save, done) |
 
-**What orchestration means in plain English:** the tool that says "when a user uploads a PDF, first save it, then call the AI, then check the result, then save the answer." It's the recipe-runner.
+### Why code-first wins the POC bar
 
-| Tool | What it is | POC strengths | POC weaknesses | Scale strengths | Scale weaknesses |
-|---|---|---|---|---|---|
-| **n8n** ✅ | Open-source visual workflow builder. Drag boxes, connect them, run. | Visual — non-engineers can follow the flow. Has a "Code" node when visual isn't expressive enough. Self-hostable if the bank wants that. Workflows are files you can put in git. | Adds vendor accounts to set up. Debugging is per-node, not line-by-line. | Handles scheduled runs, retries, error handling out of the box. Self-hosting means no per-run pricing. Non-engineers can maintain workflows. | Version control for workflows is awkward (JSON blobs). Debugging complex flows still slower than code. |
-| **Zapier** | The most popular no-code automation tool. Very polished UI. | Fastest to set up if the pieces you need are pre-built. Biggest library of integrations. | Per-run pricing gets expensive. Custom logic requires you to fight the tool. | Great for a small business with light volume. | Cost balloons at scale. Weak custom-code story. Not self-hostable — vendor lock-in. |
-| **Make (Integromat)** | Similar to n8n but as a hosted service. | More powerful than Zapier for the same kind of workflows. | Less transparent about what runs where; not self-hostable. | Reasonable at scale but same pricing concerns as Zapier. | Vendor lock-in. |
-| **Airflow / Prefect / Dagster** | Engineer-owned orchestration frameworks. Code-first. | None for a 48-hour POC. Overkill. | Weeks of setup before you get anything running. | The right answer for serious data pipelines with lots of steps, retries, backfills. | Requires engineering ownership; not touchable by ops. |
-| **AWS Step Functions / Google Cloud Workflows** | Cloud-vendor orchestration services. | None for POC — you're inside AWS/GCP consoles for hours before you write a prompt. | Requires cloud engineering knowledge. | Excellent at true scale — durable, cheap, integrates with everything in the cloud. | Vendor lock-in; harder for non-engineers to touch. |
-| **Just Python + FastAPI (no orchestration tool)** | Write the workflow directly in code. | Fastest to get to a running demo. Total control. Zero vendor. | You build retries, scheduling, monitoring yourself. | Fine at small scale. At real scale, you're eventually reinventing an orchestrator badly — usually the trigger to move to Airflow or similar. | Not touchable by non-engineers. |
+**1. Speed to a runnable demo.** 2 hours vs 4-5 hours. The brief is explicit: *"if you hit 5-6 hours across memo generation and agent build and it works, stop there."* Building both broke that budget without giving the reviewer anything meaningfully different to click.
 
-**POC winner:** **Just Python** for Approach A because it's the fastest path to a runnable demo. **n8n** for Approach B because it's the visual story the interviewer can watch, and it's genuinely a good POC tool.
+**2. Line-by-line defensibility.** The brief says *"explain the integrations you chose, not just name them."* 150 lines of Python + Streamlit widgets that I can walk through on screen is easier to defend under interview pressure than a 9-node visual workflow whose Function nodes hide the same logic anyway. If a reviewer asks *"where is the guardrail?"* — I can literally point at `src/guardrails.py`. The n8n equivalent is *"click this node, expand this Function block..."*.
 
-**Scale winner:** depends on org. For a mid-scale bank workflow with ops involvement, **n8n** stays a good answer. For high-volume automated pipelines run by an engineering team, **Airflow/Prefect or cloud-native (Step Functions)**. For a small business or single-team use, **n8n or Make**.
+**3. Fewer moving parts to fail live.** The code-first stack has one vendor (Anthropic). The low-code stack has four (Anthropic, n8n Cloud, Firebase, GitHub Pages). Any of the extra three can outage the demo mid-interview — a webhook 404, a Firestore rules typo, a Pages build lag — and each is one more thing to debug.
 
-### 3.2 Storage & database — Firebase vs alternatives
+**4. The AI does the same work in both.** Both approaches would run Extract → Rank + guardrail on Claude Sonnet 4.6. The tool comparison is really about *where the code lives*, not *what it does*. A reviewer wanting to see the pipeline doesn't need two versions producing the same JSON.
 
-**What we need to store in plain English:** the uploaded PDFs, and the JSON result for each one. Also a way to look up past reviews.
+**5. Cost stays flat.** Code-first has $0 fixed cost — everything is pay-as-you-go on Anthropic. Low-code adds n8n Cloud ($20/mo after 14-day trial) for the duration of the demo period.
 
-| Tool | What it is | POC strengths | POC weaknesses | Scale strengths | Scale weaknesses |
-|---|---|---|---|---|---|
-| **Firebase** ✅ | Google's all-in-one backend service. Storage for files, Firestore (a document database) for JSON, Auth for logins. | Setup takes minutes. Signed URLs for files out of the box. Firestore is schemaless — matches our JSON output. Single console, single vendor. | Firestore is not a great fit if you later want SQL-style queries ("all memos where leverage > 4.0"). | Fine at moderate scale. Automatic scaling. | Costs get real if you're storing lots of files or making many reads. Vendor lock-in to Google. Firestore isn't SQL, so complex analytics require exporting data. |
-| **Supabase** | Open-source Firebase alternative built on Postgres. | Also very fast setup. Real SQL from day one. Row-level security is powerful. | Slightly more concepts to learn than Firebase for a first-time user. | Better than Firebase if you need SQL analytics. Self-hostable. | Managed service is a smaller company than Firebase; long-term bet is different. |
-| **AWS S3 + RDS Postgres** | Raw cloud storage + a managed SQL database. | None for POC — hours of setup for IAM, VPCs, etc. | Slow to stand up. | The default choice for enterprise banks. Fits with existing AWS infrastructure. Full control. | You build more of the plumbing yourself (signed URLs, dashboards, auth). |
-| **Local filesystem + SQLite** | Just save files in a folder and rows in a SQLite database. | Simplest possible thing. Great for a laptop-only demo. | Doesn't work multi-user. Doesn't work if the demo runs anywhere but your laptop. | Not viable. | N/A |
-| **MongoDB Atlas** | Managed MongoDB — schemaless like Firestore, but a full database. | Fast setup. Rich query language. | You still need a separate file store (S3 or similar). | Great for document-shaped data at scale. | Two tools instead of one (adds an S3-equivalent). |
+### Where the low-code version would win instead
 
-**POC winner:** **Firebase** — least ceremony, and Storage + Firestore + Auth in one console covers everything we need. **Local filesystem** for the Python approach because the demo runs on my laptop.
+Honest answer to *"why not both?"* — for a bank innovation team at production time, I'd absolutely rebuild this on n8n or similar. Reasons:
 
-**Scale winner:** In a bank, **AWS S3 + Postgres** (or equivalent in Azure/GCP) will almost always win because it fits existing infrastructure, compliance, and audit. **Supabase** is a strong middle-ground pick if a lightweight product owns the workload. **Firebase at real scale is fine but usually loses to native-cloud alternatives for bank workloads.**
+- **Non-engineers can edit prompts** without a PR / deploy cycle. Real value when the ops team owns the workflow.
+- **Free persistence + history** via Firestore. Every run auditable without writing storage code.
+- **Built-in retries + observability** per node. Would take a day to add to the Python version manually.
+- **Ops-friendly execution log.** A non-engineer can debug a failed run by clicking the failed node — no need to read a stack trace.
 
-### 3.3 Frontend — Lovable vs alternatives
+### One-line position
 
-**What "frontend" means in plain English:** the web page the user actually sees and clicks. The upload button, the results table, the download button.
-
-| Tool | What it is | POC strengths | POC weaknesses | Scale strengths | Scale weaknesses |
-|---|---|---|---|---|---|
-| **Lovable** ✅ | AI-native web app builder. You describe the UI in prose, it generates real React code. | Very fast for a first version. You get real React source you can inspect and modify. Named in the assignment brief. | You're at the mercy of the AI for anything unusual. Not free forever. | Since it exports real code, you can hand it off to engineers later — no lock-in. | Not a substitute for real engineering on a large app. Best as a starting point, not the final product. |
-| **Bubble** | Full no-code web app builder. Very powerful. | Broadest capabilities of the no-code group. | Steeper learning curve. Exported artifact isn't clean code. | Runs at real scale (many production apps use Bubble). | Locked into Bubble's runtime forever — hard to exit. |
-| **Retool** | Internal-tool builder. Perfect for admin dashboards. | Fast for the "read/write records with buttons" pattern. | Not a great fit for customer-facing apps (aesthetic and UX are admin-flavored). | Excellent for building internal tools that ops teams use daily. | Not the right shape for public-facing product. |
-| **Softr** | Frontend generator on top of Airtable data. | Very fast if your data is already in Airtable. | Wrong shape here — our data is JSON in Firestore, not tabular in Airtable. | Small business only. Not for bank-scale workloads. | Not the right fit for our data. |
-| **Streamlit** | Python-based web app framework for data/ML demos. | Zero-JS. One process with the pipeline. Perfect for a demo. | Aesthetic ceiling is limited. Awkward for multi-user apps with long-running jobs. | Fine at small internal scale (an analytics team using it). | Not a customer-facing production tool. |
-| **Custom React (Next.js) + your own components** | Real frontend engineering. | None for a 48-hour POC. | Days of work. | The right answer for any product a bank actually ships to customers. Full control. | High engineering cost. |
-
-**POC winner:** **Streamlit** for the Python approach — perfect for showing an AI pipeline. **Lovable** for the low-code approach — fastest way to a working web app that isn't limited to Python.
-
-**Scale winner:** For a **customer-facing product** at scale, **custom React (Next.js)** — always. For an **internal tool** at scale, **Retool** or **Bubble** depending on complexity. **Streamlit** stays viable for internal analytics/ML tooling forever. **Lovable is a starting point, not the final product** — but that's okay, because it exports code you can grow into a real React app.
+**Code-first is the right POC. Low-code is the right production version.** The interview answer is: *"I picked code-first because it defends better in a walkthrough. If you told me to productionise it for an ops team to maintain, I'd port to the n8n + Firebase pattern for the observability and edit-ability story."*
 
 ---
 
 ## 4. Summary — one-line answers to "what do we pick?"
 
-### For the POC (this 48-hour demo):
+### For the POC (this 48-hour demo)
 
-| Layer | Approach A (Python) | Approach B (low-code) |
-|---|---|---|
-| Model provider | Claude | Claude |
-| Model | Claude Sonnet 4.6 | Claude Sonnet 4.6 |
-| Orchestration | Python script (no orchestrator) | n8n |
-| Storage | Local files | Firebase |
-| Frontend | Streamlit | Lovable |
+| Layer | Pick |
+|---|---|
+| Model provider | Claude |
+| Model | Claude Sonnet 4.6 |
+| Orchestration | Python script (no orchestrator) |
+| Storage | Local files |
+| Frontend | Streamlit |
 
-### For running the same tool at scale in a real bank:
+### For running the same tool at scale in a real bank
 
-| Layer | What we'd actually pick |
+| Layer | Pick |
 |---|---|
 | Model provider | Whichever the bank already has a contract with. If unconstrained: Gemini for pure cost, Claude for quality-per-dollar. |
 | Model | Sonnet 4.6 for Extract, Opus 4.8 for Rank. |

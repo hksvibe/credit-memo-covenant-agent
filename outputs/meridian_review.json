@@ -16,11 +16,11 @@
       "current_value": "3.51x",
       "downside_value": "3.93x",
       "source_section": "5.1",
-      "verbatim_text": "Maximum total net leverage — 4.25x at close; 4.00x from Q4 2026; 3.75x from Q4 2027; 3.50x from Q4 2028 — Quarterly — 3.51x — 3.44x / 3.93x"
+      "verbatim_text": "Maximum total net leverage | 4.25x at close; 4.00x from Q4 2026; 3.75x from Q4 2027; 3.50x from Q4 2028 | Quarterly | 3.51x | 3.44x / 3.93x"
     },
     {
       "id": "cov_02",
-      "name": "Minimum cash interest coverage",
+      "name": "Minimum cash interest coverage (Adj. EBITDA / cash interest)",
       "type": "financial",
       "category": "coverage",
       "threshold": "3.00x",
@@ -28,19 +28,19 @@
       "current_value": "3.45x",
       "downside_value": "2.97x",
       "source_section": "5.1",
-      "verbatim_text": "Minimum cash interest coverage (Adj. EBITDA / cash interest) — 3.00x — Quarterly — 3.45x* — 3.39x / 2.97x"
+      "verbatim_text": "Minimum cash interest coverage (Adj. EBITDA / cash interest) | 3.00x | Quarterly | 3.45x* | 3.39x / 2.97x"
     },
     {
       "id": "cov_03",
-      "name": "Minimum liquidity",
+      "name": "Minimum liquidity (unrestricted cash + undrawn RCF)",
       "type": "financial",
       "category": "liquidity",
       "threshold": "$30.0M at all times",
-      "test_frequency": "monthly",
+      "test_frequency": "monthly certificate",
       "current_value": "$65.0M",
       "downside_value": "$38.0M (Q3 trough)",
       "source_section": "5.1",
-      "verbatim_text": "Minimum liquidity (unrestricted cash + undrawn RCF) — $30.0M at all times — Monthly certificate — $65.0M — $46.0M / $38.0M (Q3 trough)"
+      "verbatim_text": "Minimum liquidity (unrestricted cash + undrawn RCF) | $30.0M at all times | Monthly certificate | $65.0M | $46.0M / $38.0M (Q3 trough)"
     },
     {
       "id": "cov_04",
@@ -52,15 +52,15 @@
       "current_value": "n/a",
       "downside_value": "$40.0M (uses $2.0M FY25 carryforward)",
       "source_section": "5.1",
-      "verbatim_text": "Maximum capital expenditure — $38.0M per fiscal year; 50% unused carryforward — Annually — n/a — $40.0M (uses $2.0M FY25 carryforward)"
+      "verbatim_text": "Maximum capital expenditure | $38.0M per fiscal year; 50% unused carryforward | Annually | n/a | $40.0M (uses $2.0M FY25 carryforward)"
     },
     {
       "id": "cov_05",
-      "name": "Financial reporting",
+      "name": "Financial reporting — audited annual financial statements",
       "type": "non-financial",
       "category": "reporting",
-      "threshold": "Audited annual financial statements within 90 days of fiscal year-end; unaudited quarterlies within 45 days; monthly liquidity certificate within 15 days; annual budget by January 31",
-      "test_frequency": "annually / quarterly / monthly",
+      "threshold": "Within 90 days of fiscal year-end",
+      "test_frequency": "annually",
       "current_value": null,
       "downside_value": null,
       "source_section": "5.2",
@@ -68,6 +68,42 @@
     },
     {
       "id": "cov_06",
+      "name": "Financial reporting — unaudited quarterly financial statements",
+      "type": "non-financial",
+      "category": "reporting",
+      "threshold": "Within 45 days of quarter-end",
+      "test_frequency": "quarterly",
+      "current_value": null,
+      "downside_value": null,
+      "source_section": "5.2",
+      "verbatim_text": "Financial reporting: audited annual financial statements within 90 days of fiscal year-end; unaudited quarterlies within 45 days; monthly liquidity certificate within 15 days; annual budget by January 31."
+    },
+    {
+      "id": "cov_07",
+      "name": "Financial reporting — monthly liquidity certificate",
+      "type": "non-financial",
+      "category": "reporting",
+      "threshold": "Within 15 days of month-end",
+      "test_frequency": "monthly",
+      "current_value": null,
+      "downside_value": null,
+      "source_section": "5.2",
+      "verbatim_text": "Financial reporting: audited annual financial statements within 90 days of fiscal year-end; unaudited quarterlies within 45 days; monthly liquidity certificate within 15 days; annual budget by January 31."
+    },
+    {
+      "id": "cov_08",
+      "name": "Financial reporting — annual budget delivery",
+      "type": "non-financial",
+      "category": "reporting",
+      "threshold": "By January 31 annually",
+      "test_frequency": "annually",
+      "current_value": null,
+      "downside_value": null,
+      "source_section": "5.2",
+      "verbatim_text": "Financial reporting: audited annual financial statements within 90 days of fiscal year-end; unaudited quarterlies within 45 days; monthly liquidity certificate within 15 days; annual budget by January 31."
+    },
+    {
+      "id": "cov_09",
       "name": "Compliance certificate",
       "type": "non-financial",
       "category": "reporting",
@@ -79,7 +115,7 @@
       "verbatim_text": "Compliance certificate: quarterly officer's certificate with covenant calculations, signed by the CFO."
     },
     {
-      "id": "cov_07",
+      "id": "cov_10",
       "name": "Negative pledge",
       "type": "non-financial",
       "category": "negative_pledge",
@@ -91,7 +127,7 @@
       "verbatim_text": "Negative pledge: no liens on any assets other than permitted liens (finance leases up to $25M, ordinary-course liens)."
     },
     {
-      "id": "cov_08",
+      "id": "cov_11",
       "name": "Limitation on indebtedness",
       "type": "non-financial",
       "category": "indebtedness",
@@ -103,7 +139,7 @@
       "verbatim_text": "Limitation on indebtedness: no additional funded debt other than an incremental facility up to $50M, subject to 3.75x pro forma net leverage and 50 bps MFN."
     },
     {
-      "id": "cov_09",
+      "id": "cov_12",
       "name": "Restricted payments",
       "type": "non-financial",
       "category": "restricted_payment",
@@ -115,19 +151,19 @@
       "verbatim_text": "Restricted payments: dividends and distributions limited to a $15M fixed basket plus a builder basket (50% of cumulative net income), available only if pro forma net leverage ≤ 3.00x and no default."
     },
     {
-      "id": "cov_10",
-      "name": "Asset sales / mandatory prepayment",
+      "id": "cov_13",
+      "name": "Asset sales — mandatory prepayment",
       "type": "non-financial",
       "category": "asset_sale",
       "threshold": "Proceeds above $5M per year applied to mandatory prepayment unless reinvested within 12 months",
-      "test_frequency": "annually",
+      "test_frequency": "at all times",
       "current_value": null,
       "downside_value": null,
       "source_section": "5.2",
       "verbatim_text": "Asset sales: proceeds above $5M per year applied to mandatory prepayment unless reinvested within 12 months."
     },
     {
-      "id": "cov_11",
+      "id": "cov_14",
       "name": "Excess cash flow sweep",
       "type": "non-financial",
       "category": "cash_flow_sweep",
@@ -139,7 +175,7 @@
       "verbatim_text": "Excess cash flow sweep: 50% of excess cash flow, stepping to 25% at ≤ 3.00x net leverage and 0% at ≤ 2.50x."
     },
     {
-      "id": "cov_12",
+      "id": "cov_15",
       "name": "Change of control",
       "type": "non-financial",
       "category": "change_of_control",
@@ -151,7 +187,7 @@
       "verbatim_text": "Change of control: Keller family plus Halcyon ceasing to hold ≥ 50.1% voting control constitutes an event of default."
     },
     {
-      "id": "cov_13",
+      "id": "cov_16",
       "name": "Permitted acquisitions",
       "type": "non-financial",
       "category": "acquisition",
@@ -163,7 +199,7 @@
       "verbatim_text": "Permitted acquisitions: individual transactions ≤ $50M and cumulative ≤ $120M over the facility life, subject to pro forma covenant compliance and no default."
     },
     {
-      "id": "cov_14",
+      "id": "cov_17",
       "name": "Affiliate transactions",
       "type": "non-financial",
       "category": "affiliate_transaction",
@@ -175,8 +211,8 @@
       "verbatim_text": "Affiliate transactions: arm's-length terms; transactions above $2M require independent-director approval."
     },
     {
-      "id": "cov_15",
-      "name": "Sanctions / anti-corruption / AML",
+      "id": "cov_18",
+      "name": "Sanctions / anti-corruption / AML compliance",
       "type": "non-financial",
       "category": "sanctions_aml",
       "threshold": "Customary representations and ongoing compliance undertakings (OFAC, FCPA)",
@@ -187,7 +223,7 @@
       "verbatim_text": "Sanctions / anti-corruption / AML: customary representations and ongoing compliance undertakings (OFAC, FCPA)."
     },
     {
-      "id": "cov_16",
+      "id": "cov_19",
       "name": "Insurance and ERISA",
       "type": "non-financial",
       "category": "insurance_erisa",
@@ -199,44 +235,80 @@
       "verbatim_text": "Insurance and ERISA: maintenance of customary property, casualty and business-interruption insurance with lender as loss payee; no ERISA reportable events."
     },
     {
-      "id": "cov_17",
-      "name": "Interest-rate hedging condition",
+      "id": "cov_20",
+      "name": "Condition precedent — executed credit agreement and security documents",
+      "type": "non-financial",
+      "category": "other",
+      "threshold": "Executed credit agreement, security documents, and intercreditor arrangements required prior to closing",
+      "test_frequency": null,
+      "current_value": null,
+      "downside_value": null,
+      "source_section": "8",
+      "verbatim_text": "Executed credit agreement, security documents, and intercreditor arrangements."
+    },
+    {
+      "id": "cov_21",
+      "name": "Condition precedent — completion of Apex acquisition / no MAC",
+      "type": "non-financial",
+      "category": "other",
+      "threshold": "Completion of the Apex acquisition substantially on the terms of the executed SPA; no material adverse change",
+      "test_frequency": null,
+      "current_value": null,
+      "downside_value": null,
+      "source_section": "8",
+      "verbatim_text": "Completion of the Apex acquisition substantially on the terms of the executed SPA; no material adverse change."
+    },
+    {
+      "id": "cov_22",
+      "name": "Condition precedent — interest-rate hedging",
       "type": "non-financial",
       "category": "other",
       "threshold": "Interest-rate hedging covering at least 50% of Term Loan B notional for a minimum of three years, executed within 90 days of close",
-      "test_frequency": "at all times",
+      "test_frequency": null,
       "current_value": null,
       "downside_value": null,
       "source_section": "8",
       "verbatim_text": "Interest-rate hedging covering at least 50% of Term Loan B notional for a minimum of three years, executed within 90 days of close."
     },
     {
-      "id": "cov_18",
-      "name": "Opening net leverage condition precedent",
+      "id": "cov_23",
+      "name": "Condition precedent — quality-of-earnings report on Apex",
       "type": "non-financial",
-      "category": "leverage",
+      "category": "other",
+      "threshold": "Quality-of-earnings report on Apex supporting at least $7.5M of the $9.0M identified synergies",
+      "test_frequency": null,
+      "current_value": null,
+      "downside_value": null,
+      "source_section": "8",
+      "verbatim_text": "Quality-of-earnings report on Apex supporting at least $7.5M of the $9.0M identified synergies."
+    },
+    {
+      "id": "cov_24",
+      "name": "Condition precedent — pro forma compliance certificate at opening",
+      "type": "non-financial",
+      "category": "reporting",
       "threshold": "Pro forma compliance certificate demonstrating opening net leverage no greater than 3.75x",
-      "test_frequency": "at close",
+      "test_frequency": null,
       "current_value": null,
       "downside_value": null,
       "source_section": "8",
       "verbatim_text": "Pro forma compliance certificate demonstrating opening net leverage no greater than 3.75x."
     },
     {
-      "id": "cov_19",
-      "name": "KYC/AML for all obligors (condition precedent)",
+      "id": "cov_25",
+      "name": "Condition precedent — insurance certificates and KYC/AML",
       "type": "non-financial",
       "category": "sanctions_aml",
-      "threshold": "Completed KYC/AML for all obligors",
-      "test_frequency": "at close",
+      "threshold": "Insurance certificates naming the Agent as loss payee; completed KYC/AML for all obligors",
+      "test_frequency": null,
       "current_value": null,
       "downside_value": null,
       "source_section": "8",
       "verbatim_text": "Insurance certificates naming the Agent as loss payee; completed KYC/AML for all obligors."
     },
     {
-      "id": "cov_20",
-      "name": "Quarterly synergy-realization reporting (ongoing condition)",
+      "id": "cov_26",
+      "name": "Ongoing condition — quarterly synergy-realization reporting",
       "type": "non-financial",
       "category": "reporting",
       "threshold": "Quarterly synergy-realization reporting until the full $9.0M run-rate is achieved",
@@ -247,8 +319,8 @@
       "verbatim_text": "(i) quarterly synergy-realization reporting until the full $9.0M run-rate is achieved"
     },
     {
-      "id": "cov_21",
-      "name": "Monthly liquidity certificates during Q3 seasonal period (ongoing condition)",
+      "id": "cov_27",
+      "name": "Ongoing condition — monthly liquidity certificates during Q3 seasonal period",
       "type": "non-financial",
       "category": "reporting",
       "threshold": "Monthly liquidity certificates during each Q3 seasonal period",
@@ -259,85 +331,58 @@
       "verbatim_text": "(ii) monthly liquidity certificates during each Q3 seasonal period"
     },
     {
-      "id": "cov_22",
-      "name": "No waiver of Q4 2026 leverage step-down without full committee review (ongoing condition)",
+      "id": "cov_28",
+      "name": "Ongoing condition — no waiver of Q4 2026 leverage step-down without full committee review",
       "type": "non-financial",
       "category": "leverage",
       "threshold": "No waiver of the Q4 2026 leverage step-down without full committee review",
-      "test_frequency": "at all times",
+      "test_frequency": null,
       "current_value": null,
       "downside_value": null,
       "source_section": "9",
       "verbatim_text": "(iii) no waiver of the Q4 2026 leverage step-down without full committee review."
-    },
-    {
-      "id": "cov_23",
-      "name": "Quality-of-earnings report on Apex (condition precedent)",
-      "type": "non-financial",
-      "category": "reporting",
-      "threshold": "Quality-of-earnings report on Apex supporting at least $7.5M of the $9.0M identified synergies",
-      "test_frequency": "at close",
-      "current_value": null,
-      "downside_value": null,
-      "source_section": "8",
-      "verbatim_text": "Quality-of-earnings report on Apex supporting at least $7.5M of the $9.0M identified synergies."
-    },
-    {
-      "id": "cov_24",
-      "name": "EBITDA synergy add-back cap",
-      "type": "financial",
-      "category": "other",
-      "threshold": "Synergy add-backs capped at 20% of Adjusted EBITDA, subject to due-diligence support",
-      "test_frequency": "quarterly",
-      "current_value": null,
-      "downside_value": null,
-      "source_section": "5.1",
-      "verbatim_text": "EBITDA definition permits synergy add-backs capped at 20% of Adjusted EBITDA, subject to due-diligence support."
     }
   ],
   "top_risks": [
     {
       "rank": 1,
       "covenant_id": "cov_02",
-      "covenant_name": "Minimum cash interest coverage",
-      "reasoning": "This is the only covenant in the entire package that the memo explicitly projects to BREACH under the downside scenario (2.97x vs. 3.00x minimum), making it the highest-probability trip. Critically, the breach is driven by two simultaneously plausible events — synergy slippage and a resin cost spike — both of which are recurring operational risks for this business, not tail events; and because the covenant is tested quarterly on a trailing EBITDA basis, a breach cannot be cured quickly by operational improvement alone, requiring an equity injection or waiver negotiation.",
-      "evidence_from_memo": "Cash interest coverage — 3.39x / 2.97x ... Min 3.00x — BREACH ... the downside case produces a projected breach of the interest coverage covenant"
+      "covenant_name": "Minimum cash interest coverage (Adj. EBITDA / cash interest)",
+      "reasoning": "This is the only covenant that is explicitly projected to breach in the downside scenario (2.97x vs. 3.00x minimum), making it the highest-probability trip in the covenant package. Critically, while an equity cure right exists for the leverage covenant, the memo does not extend that cure explicitly to the coverage covenant, making a breach harder to cure — likely requiring a waiver or amendment rather than a simple equity injection, which materially worsens the cure difficulty weighting.",
+      "evidence_from_memo": "the downside case produces a projected breach of the interest coverage covenant, leaves only 0.07x of headroom under the leverage covenant at the Q4 2026 step-down, and reduces the liquidity cushion at the seasonal trough to $8M above the minimum."
     },
     {
       "rank": 2,
       "covenant_id": "cov_01",
       "covenant_name": "Maximum total net leverage",
-      "reasoning": "The covenant steps down to 4.00x at Q4 2026 — precisely during the 18-month synergy-realization window when EBITDA is most execution-dependent — leaving only 0.07x of headroom in the downside case; this is far below the 0.25x threshold for thin cushion and subsequent step-downs to 3.75x (Q4 2027) and 3.50x (Q4 2028) create a sustained multi-year tightening gauntlet coinciding with integration risk. While an equity cure right exists (two uses, non-consecutive), using it consumes a scarce and non-replenishable remedy, making repeated near-misses very difficult to manage.",
-      "evidence_from_memo": "Net leverage at Q4 2026 test — 3.44x — 3.93x — Max 4.00x (step-down) ... the downside case leaves only 0.07x of headroom under the leverage covenant at the Q4 2026 step-down ... The 4.00x leverage step-down (Q4 2026) lands while synergies are mid-realization; downside case leaves 0.07x headroom."
+      "reasoning": "The Q4 2026 step-down to 4.00x arrives precisely when synergy realization is at its most uncertain — only $2M of $5M FY2026 synergies achieved in the downside case — leaving headroom of just 0.07x, well inside the 0.25x thin-headroom threshold; while an equity cure right exists, it is limited to two non-consecutive uses, meaning any early deployment constrains future flexibility across a facility with three further step-downs (to 3.75x and 3.50x) still to come.",
+      "evidence_from_memo": "The 4.00x leverage step-down (Q4 2026) lands while synergies are mid-realization; downside case leaves 0.07x headroom."
     },
     {
       "rank": 3,
       "covenant_id": "cov_03",
-      "covenant_name": "Minimum liquidity",
-      "reasoning": "Unlike cov_01 and cov_02, which are quarterly-tested, the minimum liquidity covenant is tested monthly, meaning seasonal Q3 pressure produces up to three consecutive test dates where the cushion compresses to just $8M above the $30M floor in the downside case ($38M vs. $30M); the monthly cadence of the certificate also means there is almost no reaction time between breach detection and a formal default, and the Q3 working-capital driver (resin pre-buy + beverage season) is a recurring, predictable stress that management cannot easily eliminate.",
-      "evidence_from_memo": "Liquidity at Q3 trough — 46.0 — 38.0 — Min $30.0M ... Q3 working-capital build (resin pre-buy + beverage season) draws liquidity to $38M in the downside case vs. $30M minimum ... reduces the liquidity cushion at the seasonal trough to $8M above the minimum."
+      "covenant_name": "Minimum liquidity (unrestricted cash + undrawn RCF)",
+      "reasoning": "The covenant is tested monthly — the highest frequency of any financial covenant — meaning there is no quarterly averaging to smooth through a seasonal trough; in the downside case the Q3 liquidity falls to $38M, only $8M (27%) above the $30M floor, and this pressure recurs every year driven by a structural pattern (resin pre-buy plus beverage season) that is entirely independent of management execution improvements.",
+      "evidence_from_memo": "Q3 working-capital build (resin pre-buy + beverage season) draws liquidity to $38M in the downside case vs. $30M minimum."
     }
   ],
   "run_metadata": {
     "model": "claude-sonnet-4-6",
     "approach": "python",
     "extract_tokens": {
-      "input": 17125,
-      "output": 3817
+      "input": 17578,
+      "output": 4293
     },
     "rank_tokens": {
-      "input": 20484,
-      "output": 850
+      "input": 21095,
+      "output": 688
     },
     "quote_check": {
-      "passed": false,
-      "checked": 27,
-      "failures": [
-        {
-          "where": "top_risks[rank=2].evidence_from_memo",
-          "quote": "Net leverage at Q4 2026 test — 3.44x — 3.93x — Max 4.00x (step-down) ... the downside case leaves only 0.07x of headroom under the leverage covenant at the Q4 2026 step-down ... The 4.00x leverage ste"
-        }
-      ]
+      "passed": true,
+      "checked": 31,
+      "failures": [],
+      "memo_text_chars": 17189,
+      "memo_text_looks_thin": false
     }
   }
 }
