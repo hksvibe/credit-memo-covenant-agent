@@ -59,6 +59,20 @@ def _pdf_document_block(pdf_bytes: bytes) -> dict[str, Any]:
     }
 
 
+def _stream_message(client: Anthropic, **kwargs):
+    """Call Anthropic in streaming mode and return the final Message.
+
+    Streaming is required by the SDK for calls where the completion could
+    exceed the ~10 min single-request timeout. Since MAX_TOKENS_EXTRACT is
+    high enough to trip that guard, we stream both calls (also gives us a
+    tidy place to attach progress reporting later). The final Message has
+    the same shape as `client.messages.create` would return, so downstream
+    parsing is unchanged.
+    """
+    with client.messages.stream(**kwargs) as stream:
+        return stream.get_final_message()
+
+
 def _tool_call_input(response, tool_name: str) -> dict[str, Any]:
     """Pull the forced tool_use block out of an Anthropic response.
 
@@ -92,7 +106,8 @@ def run_extract(
     pdf_bytes: bytes,
     model: str,
 ) -> tuple[MemoMetadata, list[Covenant], TokenUsage]:
-    response = client.messages.create(
+    response = _stream_message(
+        client,
         model=model,
         max_tokens=MAX_TOKENS_EXTRACT,
         system=EXTRACT_SYSTEM_PROMPT,
@@ -140,7 +155,8 @@ def run_rank(
         indent=2,
         ensure_ascii=False,
     )
-    response = client.messages.create(
+    response = _stream_message(
+        client,
         model=model,
         max_tokens=MAX_TOKENS_RANK,
         system=RANK_SYSTEM_PROMPT,
