@@ -38,8 +38,14 @@ from .schemas import (
 
 
 DEFAULT_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
-MAX_TOKENS_EXTRACT = 8192
-MAX_TOKENS_RANK = 2048
+# Extract has to accommodate real memos with 50+ covenants and long
+# verbatim quotes. Sonnet supports large output budgets; 32K is comfortable.
+MAX_TOKENS_EXTRACT = 32000
+MAX_TOKENS_RANK = 4096
+
+
+class PipelineError(RuntimeError):
+    """User-friendly error raised when a stage fails in a recoverable way."""
 
 
 def _pdf_document_block(pdf_bytes: bytes) -> dict[str, Any]:
@@ -54,13 +60,30 @@ def _pdf_document_block(pdf_bytes: bytes) -> dict[str, Any]:
 
 
 def _tool_call_input(response, tool_name: str) -> dict[str, Any]:
-    """Pull the forced tool_use block out of an Anthropic response."""
+    """Pull the forced tool_use block out of an Anthropic response.
+
+    Raises PipelineError with a friendly message on the two failure modes
+    we can actually diagnose: (a) the model's output was truncated because
+    max_tokens was hit, (b) no tool_use block came back at all.
+    """
+    if response.stop_reason == "max_tokens":
+        raise PipelineError(
+            f"The model ran out of output budget while completing '{tool_name}'. "
+            "This usually means the memo has more covenants than fit in a single call. "
+            "Try increasing MAX_TOKENS_EXTRACT in src/review.py, or ask about paginating "
+            "the extract stage across sections."
+        )
     for block in response.content:
         if getattr(block, "type", None) == "tool_use" and block.name == tool_name:
-            return block.input  # type: ignore[return-value]
-    raise RuntimeError(
-        f"Expected a tool_use block for {tool_name!r} but none was returned. "
-        f"Stop reason: {response.stop_reason}"
+            args = block.input
+            if not isinstance(args, dict):
+                raise PipelineError(f"Tool call for '{tool_name}' returned non-dict input.")
+            return args
+    raise PipelineError(
+        f"The model did not call the '{tool_name}' tool. "
+        f"Stop reason: {response.stop_reason}. "
+        "The input may not be recognisable as a credit memo, or the extract prompt "
+        "needs to be adjusted for this memo's structure."
     )
 
 
@@ -91,8 +114,17 @@ def run_extract(
     )
 
     args = _tool_call_input(response, "record_covenants")
-    metadata = MemoMetadata(**args["memo_metadata"])
-    covenants = [Covenant(**c) for c in args["covenants"]]
+    metadata_raw = args.get("memo_metadata") or {"borrower": "Unknown"}
+    covenants_raw = args.get("covenants") or []
+    if not covenants_raw:
+        raise PipelineError(
+            "The extract call returned no covenants. This usually means either "
+            "(a) the uploaded document is not a credit memo, or (b) the memo uses "
+            "terminology or structure the current prompt does not recognise. "
+            "Try a different memo, or update the extract prompt in src/prompts.py."
+        )
+    metadata = MemoMetadata(**metadata_raw)
+    covenants = [Covenant(**c) for c in covenants_raw]
     usage = TokenUsage(input=response.usage.input_tokens, output=response.usage.output_tokens)
     return metadata, covenants, usage
 
@@ -134,7 +166,13 @@ def run_rank(
     )
 
     args = _tool_call_input(response, "record_top_risks")
-    risks = [TopRisk(**r) for r in args["top_risks"]]
+    risks_raw = args.get("top_risks") or []
+    if len(risks_raw) < 1:
+        raise PipelineError(
+            "The rank call returned no top risks. The memo may not contain enough "
+            "signal to distinguish covenant risk levels."
+        )
+    risks = [TopRisk(**r) for r in risks_raw]
     risks.sort(key=lambda r: r.rank)
     usage = TokenUsage(input=response.usage.input_tokens, output=response.usage.output_tokens)
     return risks, usage

@@ -20,7 +20,7 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.review import DEFAULT_MODEL, review_memo
+from src.review import DEFAULT_MODEL, PipelineError, review_memo
 
 
 load_dotenv()
@@ -112,14 +112,31 @@ if uploaded is not None:
             tmp.write(uploaded.getvalue())
             tmp_path = Path(tmp.name)
 
+        result = None
         try:
             with st.spinner("Extracting covenants and ranking risks..."):
                 result = review_memo(tmp_path, model=model)
+        except PipelineError as e:
+            st.error(f"**Could not complete the review.** {e}")
+            st.caption(
+                "This is a controlled error — the pipeline recognised the failure and "
+                "stopped cleanly. Try a smaller memo, or edit the prompts / max_tokens "
+                "in `src/` if this is a memo format we should support."
+            )
+        except Exception as e:  # noqa: BLE001 — surface every other error to the UI
+            st.error(f"**Unexpected error.** `{type(e).__name__}: {e}`")
+            st.caption(
+                "This one wasn't handled. Check the terminal / Streamlit Cloud logs for "
+                "the full traceback, or share it with me and I'll fix it."
+            )
         finally:
             try:
                 tmp_path.unlink()
             except OSError:
                 pass
+
+        if result is None:
+            st.stop()
 
         st.success(f"Extracted {len(result.covenants)} covenants and ranked top-3 risks.")
 
