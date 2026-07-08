@@ -86,13 +86,15 @@ The dotted line at the bottom shows how a `git push` to GitHub triggers Streamli
 
 ## Why the pipeline talks to Anthropic twice
 
-Split into **Extract** and **Rank** on purpose:
+Split into **Extract** and **Rank** on purpose. Backed by real testing — see [COMPARISONS.md](COMPARISONS.md) Section 4 for the three-way head-to-head vs single-call.
 
-- **Auditability.** A credit officer can eyeball the extracted covenant list against the memo's Section 5 before trusting the top-3 ranking. Single-shot collapses that check.
-- **Better quality on each stage.** Single-shot consistently under-lists non-financial covenants (change of control, restricted payments) and over-weights whatever the memo's own executive summary flagged. Splitting the jobs makes each half sharper.
-- **Debuggability under demo pressure.** If the demo breaks live, we can point to which call failed.
+- **Auditability.** A credit officer can eyeball the extracted covenant list against the memo's Section 5 before trusting the top-3 ranking. Single-call collapses that check.
+- **Debuggability under demo pressure.** If the demo breaks live, we can point to which call failed. Single-call fails atomically.
+- **Marginal completeness.** On the 50-page Deutsche Bank memo we tested, two calls extracted 50 of 50 covenants; a comprehensive single-call variant extracted 47 of 50. On a real bank workflow, 94% is not 100%.
+- **Top-3 stability.** Single-call rank 2 shifted between runs (structurally the same risk, different framing). Two focused calls with narrower schemas produce more consistent rankings.
+- **Prompt-maintenance ergonomics.** Two prompts of ~4000 chars and ~2700 chars are easier to evolve independently than one ~5000-char combined prompt that has to handle both jobs.
 
-Cost of the split: roughly 2× tokens and 2× latency. Invisible on a demo. Would revisit at scale with prompt caching (~35% cost recovery).
+Cost of the split: roughly 2× tokens and 2× latency. Invisible on a demo. At scale, Anthropic's **prompt caching** — a one-line addition to `_pdf_document_block()` — cuts the two-call premium from ~40% down to ~24% by letting the Rank call reuse the cached PDF at 10% of the input price. Full cost math in COMPARISONS.md Section 4.7.
 
 ---
 

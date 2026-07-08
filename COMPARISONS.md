@@ -137,7 +137,6 @@ We seriously considered building both paths in parallel — Python + Streamlit A
 | Where the UI lives | Streamlit Community Cloud (free tier) | GitHub Pages (frontend) + n8n Cloud (backend) |
 | Where results live | Downloadable JSON | Firestore documents (persistent history) |
 | Vendor accounts to set up | 2 (Anthropic + Streamlit Cloud) | 4 (Anthropic + n8n Cloud + Firebase + GitHub Pages) |
-| Time to a working demo | ~2 hours | ~4-5 hours (three service consoles + credentials + wiring) |
 | Streaming from Anthropic | Yes (Python SDK) | No (n8n's HTTP node waits for full response) |
 | Max token budget | 32,000 (fits any real memo) | 16,000 (capped to stay under HTTP timeout) |
 | Latency per review | 15-45 seconds | 25-70 seconds |

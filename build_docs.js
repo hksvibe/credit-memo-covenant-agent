@@ -266,7 +266,7 @@ function comparisonsChildren() {
       ['Ease of switching away', 'Easy — ~20 lines of adapter code.', 'Easy.', 'Easy.', 'Easy. Bonus: you’re already on open source.'],
     ]),
 
-    h2('1.2 POC winner — which one for this 48-hour demo?'),
+    h2('1.2 POC winner — which one wins?'),
     tableFromMatrix(W2, [
       ['Winner', 'Why in one sentence'],
       ['1st: Claude', 'Reads PDFs cleanly, forces JSON output reliably, lowest fabrication risk — the three things that matter most here.'],
@@ -360,7 +360,6 @@ function comparisonsChildren() {
       ['Where the UI lives', 'Streamlit Community Cloud (free tier)', 'GitHub Pages + n8n Cloud webhook'],
       ['Where results live', 'Downloadable JSON', 'Firestore documents (persistent history)'],
       ['Vendor accounts to set up', '2 (Anthropic + Streamlit Cloud)', '4 (Anthropic + n8n Cloud + Firebase + GitHub Pages)'],
-      ['Time to a working demo', '~2 hours', '~4-5 hours'],
       ['Streaming from Anthropic', 'Yes (Python SDK)', 'No (n8n HTTP node waits for full response)'],
       ['Max token budget', '32,000 (fits any real memo)', '16,000 (capped to stay under HTTP timeout)'],
       ['Latency per review', '15-45 seconds', '25-70 seconds'],
@@ -372,8 +371,7 @@ function comparisonsChildren() {
     ]),
 
     h2('3.2 Why code-first wins the POC bar'),
-    num('**Speed to a runnable demo.** 2 hours vs 4-5 hours. The brief is explicit: "if you hit 5-6 hours and it works, stop there." Building both broke that budget without giving the reviewer anything meaningfully different to click.'),
-    num('**Line-by-line defensibility.** The brief says "explain the integrations you chose, not just name them." 150 lines of Python + Streamlit widgets is easier to defend under interview pressure than a 9-node visual workflow whose Function nodes hide the same logic anyway.'),
+    num('**Speed to a runnable demo.**'),
     num('**Fewer moving parts to fail live.** Code-first has one vendor (Anthropic). Low-code has four (Anthropic, n8n Cloud, Firebase, GitHub Pages). Any of the extra three can outage the demo mid-interview.'),
     num('**The AI does the same work in both.** Both approaches run Extract → Rank + guardrail on Claude Sonnet 4.6. The comparison is really about where the code lives, not what it does.'),
     num('**Cost stays flat.** Code-first has $0 fixed cost. Low-code adds n8n Cloud ($20/mo after 14-day trial).'),
@@ -384,9 +382,6 @@ function comparisonsChildren() {
     bullet('**Free persistence + history** via Firestore. Every run auditable without writing storage code.'),
     bullet('**Built-in retries + observability** per node. Would take a day to add to the Python version manually.'),
     bullet('**Ops-friendly execution log.** A non-engineer can debug a failed run by clicking the failed node.'),
-
-    h2('3.4 One-line position'),
-    para('**Code-first is the right POC. Low-code is the right production version.** The interview answer: "I picked code-first because it defends better in a walkthrough. If you told me to productionise it for an ops team, I would port to the n8n + Firebase pattern for the observability and edit-ability story."'),
 
     new Paragraph({ children: [new PageBreak()] }),
 
@@ -437,7 +432,7 @@ function comparisonsChildren() {
     h2('4.5 Why we still choose two calls over comprehensive single-call'),
     para('Comprehensive single-call closed the biggest gaps. The remaining reasons to keep two calls are structural, not raw-metric:'),
     num('**Auditability of the intermediate covenant list.** A credit officer using this in a review workflow wants to eyeball the extracted covenant list against Section 5 of the memo BEFORE trusting the top-3 ranking. Two calls make the covenant list a first-class checkable artifact. Single-call collapses that check. **This is real product value in a credit-officer workflow, not a demo detail.**'),
-    num('**Debuggability under interview pressure.** If the demo fails live, two calls let us point at which stage broke. Two independent failure surfaces are easier to reason about than one atomic call.'),
+    num('**Debuggability** If the demo fails live, two calls let us point at which stage broke. Two independent failure surfaces are easier to reason about than one atomic call.'),
     num('**Marginal completeness matters.** 47 of 50 is not 50 of 50. The three covenants comprehensive single-call missed on DB include a guarantor financial covenant. In a bank workflow, "extraction is 94% complete" is a real gap for a credit officer to hit.'),
     num('**Top-3 run-to-run stability.** Comprehensive single-call shifted rank 2 on DB. Both framings point at the same underlying risk, but a reviewer running the tool multiple times should not see the top-3 fluctuate on wording.'),
     num('**Prompt-engineering brittleness.** Comprehensive single-call works BECAUSE of a very long, carefully-constructed prompt. Any tweak — new covenant category, new ranking signal — has to be threaded through one giant prompt that handles both jobs. Two calls let each stage evolve independently.'),
@@ -598,11 +593,13 @@ function architectureChildren() {
     ]),
 
     h1('4. Why the Pipeline Talks to Anthropic Twice'),
-    para('Split into Extract and Rank on purpose:'),
-    bullet('**Auditability.** A credit officer can eyeball the extracted covenant list against the memo\'s Section 5 before trusting the top-3 ranking. Single-shot collapses that check.'),
-    bullet('**Better quality on each stage.** Single-shot consistently under-lists non-financial covenants and over-weights whatever the memo\'s executive summary flagged.'),
-    bullet('**Debuggability under demo pressure.** If the demo breaks live, we can point to which call failed.'),
-    para('Cost of the split: roughly 2x tokens and 2x latency. Invisible on a demo. Would revisit at scale with prompt caching (~35% cost recovery).'),
+    para('Split into Extract and Rank on purpose. Backed by real testing — see COMPARISONS.md Section 4 for the three-way head-to-head vs single-call.'),
+    bullet('**Auditability.** A credit officer can eyeball the extracted covenant list against the memo\'s Section 5 before trusting the top-3 ranking. Single-call collapses that check.'),
+    bullet('**Debuggability under demo pressure.** If the demo breaks live, we can point to which call failed. Single-call fails atomically.'),
+    bullet('**Marginal completeness.** On the 50-page Deutsche Bank memo we tested, two calls extracted 50 of 50 covenants; a comprehensive single-call variant extracted 47 of 50. On a real bank workflow, 94% is not 100%.'),
+    bullet('**Top-3 stability.** Single-call rank 2 shifted between runs (structurally the same risk, different framing). Two focused calls with narrower schemas produce more consistent rankings.'),
+    bullet('**Prompt-maintenance ergonomics.** Two prompts of ~4000 chars and ~2700 chars are easier to evolve independently than one ~5000-char combined prompt that has to handle both jobs.'),
+    para('Cost of the split: roughly 2x tokens and 2x latency. Invisible on a demo. At scale, Anthropic\'s prompt caching — a one-line addition — cuts the two-call premium from ~40% down to ~24% by letting the Rank call reuse the cached PDF at 10% of the input price. Full cost math in COMPARISONS.md Section 4.7.'),
 
     h1('5. Why the Guardrail Runs Locally'),
     para('The AI\'s output claims: "here is a covenant, and here is the exact quote from the memo that proves it." We verify locally that the quote is actually in the memo, using pypdf to pull the memo\'s text layer. Three tiers of check (exact substring → fragment split → fuzzy word overlap at 90%) so we don\'t false-positive on table-row reconstructions or scanned-PDF extractor drift.'),
