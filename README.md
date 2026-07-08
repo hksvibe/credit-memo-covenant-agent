@@ -126,6 +126,3 @@ credit-memo-covenants-assignment/
 
 ---
 
-## What you'd extend with two more weeks
-
-Build an eval harness: 5-10 varied memos with human-labeled top-3, then measure covenant recall + rank agreement. Right now the only "grader" is me and one memo — not enough to know how the tool generalises.
