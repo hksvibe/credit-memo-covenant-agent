@@ -149,15 +149,13 @@ We seriously considered building both paths in parallel — Python + Streamlit A
 
 ### Why code-first wins the POC bar
 
-**1. Speed to a runnable demo.** 2 hours vs 4-5 hours. The brief is explicit: *"if you hit 5-6 hours across memo generation and agent build and it works, stop there."* Building both broke that budget without giving the reviewer anything meaningfully different to click.
+**1. Speed to a runnable demo.** 
 
-**2. Line-by-line defensibility.** The brief says *"explain the integrations you chose, not just name them."* 150 lines of Python + Streamlit widgets that I can walk through on screen is easier to defend under interview pressure than a 9-node visual workflow whose Function nodes hide the same logic anyway. If a reviewer asks *"where is the guardrail?"* — I can literally point at `src/guardrails.py`. The n8n equivalent is *"click this node, expand this Function block..."*.
+**2. Fewer moving parts to fail live.** The code-first stack has one vendor (Anthropic). The low-code stack has four (Anthropic, n8n Cloud, Firebase, GitHub Pages). Any of the extra three can outage the demo mid-interview — a webhook 404, a Firestore rules typo, a Pages build lag — and each is one more thing to debug.
 
-**3. Fewer moving parts to fail live.** The code-first stack has one vendor (Anthropic). The low-code stack has four (Anthropic, n8n Cloud, Firebase, GitHub Pages). Any of the extra three can outage the demo mid-interview — a webhook 404, a Firestore rules typo, a Pages build lag — and each is one more thing to debug.
+**3. The AI does the same work in both.** Both approaches would run Extract → Rank + guardrail on Claude Sonnet 4.6. The tool comparison is really about *where the code lives*, not *what it does*. A reviewer wanting to see the pipeline doesn't need two versions producing the same JSON.
 
-**4. The AI does the same work in both.** Both approaches would run Extract → Rank + guardrail on Claude Sonnet 4.6. The tool comparison is really about *where the code lives*, not *what it does*. A reviewer wanting to see the pipeline doesn't need two versions producing the same JSON.
-
-**5. Cost stays flat.** Code-first has $0 fixed cost — everything is pay-as-you-go on Anthropic. Low-code adds n8n Cloud ($20/mo after 14-day trial) for the duration of the demo period.
+**4. Cost stays flat.** Code-first has $0 fixed cost — everything is pay-as-you-go on Anthropic. Low-code adds n8n Cloud ($20/mo after 14-day trial) for the duration of the demo period.
 
 ### Where the low-code version would win instead
 
@@ -168,9 +166,6 @@ Honest answer to *"why not both?"* — for a bank innovation team at production 
 - **Built-in retries + observability** per node. Would take a day to add to the Python version manually.
 - **Ops-friendly execution log.** A non-engineer can debug a failed run by clicking the failed node — no need to read a stack trace.
 
-### One-line position
-
-**Code-first is the right POC. Low-code is the right production version.** The interview answer is: *"I picked code-first because it defends better in a walkthrough. If you told me to productionise it for an ops team to maintain, I'd port to the n8n + Firebase pattern for the observability and edit-ability story."*
 
 ---
 
