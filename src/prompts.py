@@ -50,7 +50,7 @@ Return your output via the `record_covenants` tool. That is the only acceptable 
 
 RANK_SYSTEM_PROMPT = f"""You are a senior credit officer reviewing a corporate credit memo. Prompt version: {PROMPT_VERSION}.
 
-You have already been given the full extracted list of covenants (both financial and non-financial). Your ONLY job in this call is to identify the three highest-risk covenants and explain why in 1-2 sentences each.
+You have already been given the full extracted list of covenants (both financial and non-financial). Your ONLY job in this call is to identify the FIVE highest-risk covenants, explain why in 1-2 sentences each, and record a recommended lender mitigation for each.
 
 ## Definition of "risk"
 
@@ -63,17 +63,33 @@ You have already been given the full extracted list of covenants (both financial
 3. Covenants that step down (become stricter) during the facility life, especially if the step lands during a period of execution risk (integration, synergy realisation, ramp, refinancing).
 4. Seasonal or working-capital patterns that stress the covenant periodically (e.g. Q3 inventory build against a liquidity floor).
 5. Covenants that depend on management execution rather than external market factors.
-6. Non-financial covenants can absolutely be top-3 — e.g. a change-of-control trigger when ownership changes are actively contemplated, or a debt-incurrence limit when the borrower is planning an acquisition.
+6. Non-financial covenants can absolutely be top-5 — e.g. a change-of-control trigger when ownership changes are actively contemplated, or a debt-incurrence limit when the borrower is planning an acquisition.
 
 ## Guardrails
 
 - Do NOT default to whichever risks the memo's executive summary already flagged. Work through the full covenant list yourself. If your independent view disagrees with the executive summary, prefer your independent view and say so briefly.
-- For each of the top-3, provide an `evidence_from_memo` field with a **single verbatim passage** from the memo — the shortest contiguous passage that supports the point.
+- For each of the top-5, provide an `evidence_from_memo` field with a **single verbatim passage** from the memo — the shortest contiguous passage that supports the point.
 - DO NOT stitch multiple passages together with `"..."`, `"|"`, `"—"`, or any other separator. If two passages both support the point, pick the stronger one. Multi-passage evidence fails downstream grounding checks.
 - If two covenants are close on risk, prefer the one where a breach would be harder to cure (e.g. equity cure available > waiver required > amendment required > default).
-- Rank 1 is the highest risk. Ranks must be 1, 2, 3.
+- Rank 1 is the highest risk. Ranks must be 1, 2, 3, 4, 5. Do NOT return duplicate ranks or skip a rank.
 - Use the `covenant_id` from the extracted list — do NOT invent new ids.
-- If the memo is genuinely thin on risk signal — no downside scenario, wide headroom on everything, all covenants tested at close only — still return your best three based on structural factors (step-downs, cure mechanics, execution dependence). Say so in the reasoning.
+- If the memo is genuinely thin on risk signal — no downside scenario, wide headroom on everything, all covenants tested at close only — still return your best five based on structural factors (step-downs, cure mechanics, execution dependence). Say so in the reasoning.
+
+## Mitigation notes
+
+For each of the five ranked risks, record a `mitigation` note. This is the officer's recommended action — NOT a memo quote, NOT an extraction — so it must not be verbatim and does not need to appear in the memo.
+
+Write 1-3 sentences per risk. Prefer concrete, actionable mitigations over generic ones. Reasonable categories:
+
+- **Monitoring** — e.g. "Require monthly liquidity certificate rather than quarterly; escalate to weekly if minimum cash < $75m at any month-end."
+- **Structural fixes** — e.g. "Add a springing cash sweep if leverage exceeds 4.5x for two consecutive quarters," or "Require a hedged interest-rate floor before drawdown."
+- **Waiver / amendment triggers** — e.g. "Negotiate an equity cure right up to 2 uses per facility life, at parent HoldCo level, to cure short-term EBITDA weakness."
+- **Documentation / covenant refresh** — e.g. "Tighten the negative pledge to close carve-outs for the Asia JV; require quarterly certification of no new liens."
+- **Portfolio actions** — e.g. "Reduce hold size at closing given execution risk; syndicate to at least two other lenders before facility becomes effective."
+
+If the covenant is a non-financial or structural risk, the mitigation should reflect that (e.g. a change-of-control trigger's mitigation is typically a lender consent right or refinancing standby, not a monitoring cadence).
+
+Do NOT write vague mitigations like "monitor closely" or "review at each reporting date" — those add no value. Every mitigation should name a specific action, cadence, threshold, or documentation change.
 
 Return your output via the `record_top_risks` tool. That is the only acceptable output.
 """

@@ -2,9 +2,13 @@
 
 Two calls to Claude:
   1. Extract  — record_covenants tool, produces the full covenant list.
-  2. Rank     — record_top_risks tool, produces the top-3 risks.
+  2. Rank     — record_top_risks tool, produces the top-5 risks plus a
+                recommended lender mitigation note for each.
 
-Then a local guardrail pass checks that every quote appears in the memo text.
+Then a local guardrail pass checks that every verbatim quote from the memo
+(both extraction quotes and top-risk evidence quotes) appears in the memo
+text. Mitigation notes are NOT verbatim quotes and are not guardrailed —
+they are the officer's recommended action.
 
 Usage:
     python -m src.review memo/some_memo.pdf > outputs/review.json
@@ -41,7 +45,12 @@ DEFAULT_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 # Extract has to accommodate real memos with 50+ covenants and long
 # verbatim quotes. Sonnet supports large output budgets; 32K is comfortable.
 MAX_TOKENS_EXTRACT = 32000
-MAX_TOKENS_RANK = 4096
+# Top-5 risks each carry rank + covenant_id + covenant_name + reasoning +
+# evidence_from_memo + mitigation. Long verbatim quotes plus 1-3 sentences of
+# mitigation guidance per risk push the output well above the old 4096 ceiling
+# on complex memos. 8192 leaves comfortable headroom below Sonnet 4.6's 128K
+# streaming cap.
+MAX_TOKENS_RANK = 8192
 
 
 class PipelineError(RuntimeError):
@@ -172,9 +181,12 @@ def run_rank(
                         "The attached PDF is a corporate credit memo. Here is the fully "
                         "extracted covenant list, one per row:\n\n"
                         f"```json\n{covenant_summary}\n```\n\n"
-                        "Pick the three highest-risk covenants and record them via the "
-                        "record_top_risks tool. Reason independently — do not simply repeat "
-                        "whichever risks the memo's executive summary flagged."
+                        "Pick the five highest-risk covenants and record them via the "
+                        "record_top_risks tool. For each, include a specific, actionable "
+                        "lender mitigation (monitoring cadence, structural fix, waiver "
+                        "trigger, or portfolio action). Reason independently — do not "
+                        "simply repeat whichever risks the memo's executive summary "
+                        "flagged."
                     ),
                 },
             ],
@@ -187,6 +199,15 @@ def run_rank(
         raise PipelineError(
             "The rank call returned no top risks. The memo may not contain enough "
             "signal to distinguish covenant risk levels."
+        )
+    if len(risks_raw) < 5:
+        # Tool schema mandates minItems: 5 so this should not fire in practice,
+        # but if the API ever loosens strict enforcement we want a clear error
+        # rather than a truncated top-N sneaking into the output.
+        raise PipelineError(
+            f"The rank call returned only {len(risks_raw)} risks (expected 5). "
+            "This can happen if the memo has fewer than 5 covenants or the model "
+            "lost output budget mid-generation. Try a longer memo or raise MAX_TOKENS_RANK."
         )
     risks = [TopRisk(**r) for r in risks_raw]
     risks.sort(key=lambda r: r.rank)

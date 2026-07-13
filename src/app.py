@@ -83,8 +83,9 @@ if not _password_gate():
 
 st.title("Credit Memo Covenant Reviewer")
 st.caption(
-    "Upload a corporate credit memo. The agent extracts every covenant, ranks the top-3 risks, "
-    "and returns structured JSON. Every finding is grounded in a verbatim quote from the memo."
+    "Upload a corporate credit memo. The agent extracts every covenant, ranks the top-5 risks "
+    "with a recommended lender mitigation for each, and returns structured JSON. Risk quotes are "
+    "grounded verbatim in the memo; mitigations are the officer's recommended action."
 )
 
 with st.sidebar:
@@ -96,7 +97,7 @@ with st.sidebar:
     st.markdown("**Architecture**")
     st.markdown(
         "1. Extract call — record_covenants tool\n"
-        "2. Rank call — record_top_risks tool\n"
+        "2. Rank call — record_top_risks tool (top-5 + mitigation)\n"
         "3. Guardrail — verbatim-quote substring check"
     )
 
@@ -138,7 +139,7 @@ if uploaded is not None:
         if result is None:
             st.stop()
 
-        st.success(f"Extracted {len(result.covenants)} covenants and ranked top-3 risks.")
+        st.success(f"Extracted {len(result.covenants)} covenants and ranked top-5 risks with mitigations.")
 
         # -------- Memo metadata --------------------------------------------
         with st.container(border=True):
@@ -153,13 +154,14 @@ if uploaded is not None:
             cols[2].metric("Memo date", result.memo_metadata.memo_date or "—")
             cols[3].metric("Covenants found", str(len(result.covenants)))
 
-        # -------- Top-3 risks ----------------------------------------------
-        st.subheader("Top 3 covenant risks")
+        # -------- Top-5 risks ----------------------------------------------
+        st.subheader("Top 5 covenant risks")
         for risk in result.top_risks:
             with st.container(border=True):
                 st.markdown(f"### Rank {risk.rank} · {risk.covenant_name}")
                 st.markdown(f"**Reasoning.** {risk.reasoning}")
                 st.markdown(f"> *Memo quote:* {risk.evidence_from_memo}")
+                st.markdown(f"**Recommended mitigation.** {risk.mitigation}")
                 st.caption(f"Covenant id: `{risk.covenant_id}`")
 
         # -------- All covenants --------------------------------------------

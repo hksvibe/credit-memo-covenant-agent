@@ -63,11 +63,19 @@ class Covenant(BaseModel):
 
 
 class TopRisk(BaseModel):
-    rank: int = Field(..., ge=1, le=3)
+    rank: int = Field(..., ge=1, le=5)
     covenant_id: str
     covenant_name: str
-    reasoning: str = Field(..., description="1-2 sentences explaining why this covenant is one of the top-3 risks")
+    reasoning: str = Field(..., description="1-2 sentences explaining why this covenant is one of the top-5 risks")
     evidence_from_memo: str = Field(..., description="Verbatim quote from the memo supporting the ranking")
+    mitigation: str = Field(
+        ...,
+        description=(
+            "1-3 sentences describing recommended lender mitigation — monitoring cadence, "
+            "waiver / amendment trigger, structural fix, or hedging step. Not a memo quote; "
+            "the officer's recommended action."
+        ),
+    )
 
 
 class TokenUsage(BaseModel):
@@ -201,20 +209,20 @@ EXTRACT_TOOL = {
 RANK_TOOL = {
     "name": "record_top_risks",
     "description": (
-        "Records the three highest-risk covenants with grounded reasoning. "
-        "Exactly three items — rank 1 is the highest risk."
+        "Records the five highest-risk covenants with grounded reasoning and a lender "
+        "mitigation note per risk. Exactly five items — rank 1 is the highest risk."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "top_risks": {
                 "type": "array",
-                "minItems": 3,
-                "maxItems": 3,
+                "minItems": 5,
+                "maxItems": 5,
                 "items": {
                     "type": "object",
                     "properties": {
-                        "rank": {"type": "integer", "enum": [1, 2, 3]},
+                        "rank": {"type": "integer", "enum": [1, 2, 3, 4, 5]},
                         "covenant_id": {
                             "type": "string",
                             "description": "The id of the covenant from the extracted list.",
@@ -223,13 +231,23 @@ RANK_TOOL = {
                         "reasoning": {
                             "type": "string",
                             "description": (
-                                "1-2 sentences explaining why this covenant is one of the top-3 risks. "
+                                "1-2 sentences explaining why this covenant is one of the top-5 risks. "
                                 "Reference the downside case, headroom, or seasonal pressure explicitly."
                             ),
                         },
                         "evidence_from_memo": {
                             "type": "string",
                             "description": "Verbatim quote(s) from the memo supporting the ranking.",
+                        },
+                        "mitigation": {
+                            "type": "string",
+                            "description": (
+                                "1-3 sentences describing what the lender should do to mitigate this "
+                                "risk — monitoring cadence (e.g. monthly liquidity certificate), waiver "
+                                "or amendment triggers (e.g. equity cure right), structural fixes "
+                                "(e.g. cash sweep, springing lien), or hedging (e.g. FX / rate swap). "
+                                "This is the officer's recommended action, NOT a memo quote."
+                            ),
                         },
                     },
                     "required": [
@@ -238,6 +256,7 @@ RANK_TOOL = {
                         "covenant_name",
                         "reasoning",
                         "evidence_from_memo",
+                        "mitigation",
                     ],
                 },
             }
